@@ -1,1 +1,12 @@
 .worktrees/
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.local
+*.tsbuildinfo
+
+# Go build artifacts
+api/bin/
+api/vendor/
