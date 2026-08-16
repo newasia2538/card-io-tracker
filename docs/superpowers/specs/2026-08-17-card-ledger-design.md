@@ -15,7 +15,8 @@ Build an installable Progressive Web App for card collectors to record and manag
 - Network is required for list, create, edit, and delete operations in the MVP. The PWA caches its app shell but does not queue offline writes.
 - Only THB and USD are supported currencies.
 - The currency default is THB when `navigator.language` starts with `th`; otherwise it is USD. Users can always override the default.
-- Summary totals and profit/loss use a user-selected display currency and the latest available exchange rate.
+- The authoritative stored price is always THB. Original input amount and currency remain stored for editing and history.
+- Summary totals and profit/loss use the stored THB values, converted to the user-selected display currency with the latest available exchange rate.
 
 ## Architecture
 
@@ -39,8 +40,11 @@ Supabase SQL migration creates a `transactions` table:
 - `action text not null` constrained to `BUY` or `SELL`
 - `card_type text not null`
 - `custom_card_type text null`
-- `price numeric(14, 2) not null` with a positive-value check
-- `currency text not null` constrained to `USD` or `THB`
+- `price numeric(14, 2) not null` with a positive-value check; original amount entered by the user
+- `currency text not null` constrained to `USD` or `THB`; original input currency
+- `price_thb numeric(14, 2) not null` with a positive-value check; canonical stored price used for totals
+- `exchange_rate_to_thb numeric(18, 8) not null`; `1` for THB input, USD-to-THB rate for USD input
+- `exchange_rate_date date not null`; provider date for the rate used to calculate `price_thb`
 - `transaction_date date not null`
 - `created_at timestamptz not null default now()`
 - `updated_at timestamptz not null default now()`
@@ -55,7 +59,7 @@ When `card_type` is `Others`, `custom_card_type` is required. For other card typ
 - `DELETE /api/transactions/:id`: delete an owned record after ownership enforcement.
 - `GET /api/exchange-rate?from=USD&to=THB`: return the latest supported pair rate and provider date. Go fetches the free Frankfurter API server-side and caches the response for the provider's daily update window.
 
-Request validation rejects missing fields, unsupported enum values, non-positive prices, invalid dates, and missing custom card type for `Others`. Responses use JSON with stable error messages and appropriate HTTP status codes. API tests cover validation, auth boundaries, and GraphQL mapping.
+Request validation rejects missing fields, unsupported enum values, non-positive prices, invalid dates, and missing custom card type for `Others`. Go calculates `price_thb` from the submitted original price, selected currency, and latest rate; clients cannot submit or override the canonical THB value. Responses use JSON with stable error messages and appropriate HTTP status codes. API tests cover validation, auth boundaries, conversion, and GraphQL mapping.
 
 ## UI behavior
 
@@ -71,15 +75,24 @@ Form fields:
 - Date input defaulting to current local date in `YYYY-MM-DD`.
 - `SAVE` and `CLEAR` actions.
 
+When USD is selected, show below the price input:
+
+- `1 USD = ฿X.XX THB`, with the latest rate date.
+- `≈ ฿Y.YY THB`, calculated from the filled USD price.
+
+The preview uses the same cached/latest rate the Go API will use. When THB is selected, show the entered amount as the canonical THB amount. USD saves are blocked only when neither a live nor cached rate is available.
+
 Create mode uses `SAVE`. Selecting `EDIT` on a row switches the same form to edit mode with all values populated and changes the primary action to `UPDATE`. `CLEAR` exits edit mode and resets the form. Successful create/update resets the form, refreshes the list, and keeps the active Buy/Sell tab. Delete requires confirmation, then refreshes the relevant list.
 
-Above the list, a summary area shows `BUY`, `SELL`, and `P/L` values. A THB/USD switch changes the summary display currency. For selected currency `C`, calculate:
+Above the list, a summary area shows `BUY`, `SELL`, and `P/L` values. A THB/USD switch changes the summary display currency. First calculate from canonical stored prices:
 
-- `totalBuy = sum(convert(amount, record.currency, C))` for BUY records.
-- `totalSell = sum(convert(amount, record.currency, C))` for SELL records.
-- `P/L = totalSell - totalBuy`.
+- `totalBuyTHB = sum(record.price_thb)` for BUY records.
+- `totalSellTHB = sum(record.price_thb)` for SELL records.
+- `P/LTHB = totalSellTHB - totalBuyTHB`.
 
-Positive P/L is green. Negative P/L includes its negative sign and is red. Zero is neutral. Summary amounts round to two decimal places only for display; aggregation keeps higher precision. A small rate-date label identifies the exchange-rate snapshot used. Individual rows retain their original entered amount and currency.
+For display, show THB values directly when THB is selected. When USD is selected, divide each aggregate by the latest USD-to-THB rate. This keeps all saved records canonical in THB while supporting the user's display-currency switch.
+
+Positive P/L is green. Negative P/L includes its negative sign and is red. Zero is neutral. Summary amounts round to two decimal places only for display; aggregation keeps higher precision. A small rate-date label identifies the exchange-rate snapshot used. Individual rows retain their original entered amount and currency, with canonical THB used for calculations.
 
 The list uses Buy/Sell tabs with counts. Each row shows action, card type (custom type when applicable), date, amount, currency, edit, and delete controls. Empty tabs have clear empty states. Layout is single-column on mobile and centered two-column on desktop. Labels, keyboard access, focus states, and status announcements are included.
 
@@ -89,7 +102,8 @@ An account control exposes optional anonymous-account upgrade using email/passwo
 
 - Anonymous auth failure: show a recoverable auth error and retry action.
 - API/network failure: preserve form values and show retry feedback.
-- Exchange-rate failure: use the last successful cached rate and show its date; if no rate is available, keep the transaction list usable and show summary values as unavailable.
+- Exchange-rate failure for USD input: use the last successful cached rate and show its date; if no rate is available, block USD save and show the transaction list normally.
+- Exchange-rate failure for USD summary display: keep THB summary available and show USD summary as unavailable until a rate loads.
 - Validation failure: show inline field errors and do not send a request.
 - Unauthorized or forbidden mutation: show an error and refresh the list.
 - Delete cancellation: make no request.
