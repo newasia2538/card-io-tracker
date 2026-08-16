@@ -64,7 +64,7 @@ git commit -m "build: scaffold card ledger app"
 
 **Produces:** `public.transactions` and pg_graphql CRUD entrypoints.
 
-- [ ] **Step 1: Generate migration.** Run `supabase init` and `supabase migration new create_transactions`; edit generated migration file, never invent timestamp.
+- [ ] **Step 1: Generate migration and enable GraphQL.** Run `supabase init` and `supabase migration new create_transactions`; enable `pg_graphql` in Supabase Database > Extensions or with `create extension if not exists pg_graphql;` when the project does not already have it. Edit generated migration file, never invent timestamp.
 - [ ] **Step 2: Add schema and policies:**
 
 ```sql
@@ -270,5 +270,4 @@ All tests pass; TypeScript build and Go tests succeed without warnings.
 git add .
 git commit -m "test: verify card ledger workflow"
 ```
-
 
