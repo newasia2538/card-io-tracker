@@ -110,6 +110,70 @@ describe('ensureAuthSession', () => {
     expect(signInAnonymously).toHaveBeenCalledTimes(1)
   })
 
+  it('serializes staggered concurrent session bootstraps for the same client', async () => {
+    const anonymousResult = {
+      data: {
+        session: {
+          access_token: 'shared-token',
+          user: {
+            id: 'user-serial',
+            is_anonymous: true,
+          },
+        },
+      },
+      error: null,
+    }
+    const getSession = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              resolve({
+                data: { session: null },
+                error: null,
+              })
+            }, 10)
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              resolve({
+                data: { session: null },
+                error: null,
+              })
+            }, 50)
+          }),
+      )
+    const signInAnonymously = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(anonymousResult), 20)
+        }),
+    )
+    const client = {
+      auth: {
+        getSession,
+        signInAnonymously,
+      },
+    }
+
+    const firstRequest = ensureAuthSession(client)
+    const secondRequest = ensureAuthSession(client)
+    const [first, second] = await Promise.all([firstRequest, secondRequest])
+
+    expect(first).toEqual({
+      accessToken: 'shared-token',
+      userId: 'user-serial',
+      isAnonymous: true,
+    })
+    expect(second).toEqual(first)
+    expect(getSession).toHaveBeenCalledTimes(1)
+    expect(signInAnonymously).toHaveBeenCalledTimes(1)
+  })
+
   it('clears the in-flight anonymous sign-in after rejection so later callers can retry', async () => {
     const signInAnonymously = vi
       .fn()

@@ -27,7 +27,7 @@ export interface SupabaseAuthClientLike {
 }
 
 let cachedSupabaseClient: SupabaseClient | null = null
-const anonymousSessionRequests = new WeakMap<
+const authSessionRequests = new WeakMap<
   SupabaseAuthClientLike,
   Promise<AuthSession>
 >()
@@ -58,41 +58,42 @@ export function getSupabaseClient(): SupabaseClient {
 export async function ensureAuthSession(
   client: SupabaseAuthClientLike = getSupabaseClient(),
 ): Promise<AuthSession> {
-  const sessionResult = await client.auth.getSession()
-  if (sessionResult.error) {
-    throw sessionResult.error
-  }
-
-  const existingSession = toAuthSession(sessionResult.data.session)
-  if (existingSession) {
-    return existingSession
-  }
-
-  const inFlightRequest = anonymousSessionRequests.get(client)
+  const inFlightRequest = authSessionRequests.get(client)
   if (inFlightRequest) {
     return inFlightRequest
   }
 
-  const anonymousSessionRequest = client.auth
-    .signInAnonymously()
-    .then((anonymousResult) => {
-      if (anonymousResult.error) {
-        throw anonymousResult.error
+  const authSessionRequest = client.auth
+    .getSession()
+    .then((sessionResult) => {
+      if (sessionResult.error) {
+        throw sessionResult.error
       }
 
-      const anonymousSession = toAuthSession(anonymousResult.data.session)
-      if (!anonymousSession) {
-        throw new Error('Supabase anonymous sign-in did not return a session')
+      const existingSession = toAuthSession(sessionResult.data.session)
+      if (existingSession) {
+        return existingSession
       }
 
-      return anonymousSession
+      return client.auth.signInAnonymously().then((anonymousResult) => {
+        if (anonymousResult.error) {
+          throw anonymousResult.error
+        }
+
+        const anonymousSession = toAuthSession(anonymousResult.data.session)
+        if (!anonymousSession) {
+          throw new Error('Supabase anonymous sign-in did not return a session')
+        }
+
+        return anonymousSession
+      })
     })
     .finally(() => {
-      anonymousSessionRequests.delete(client)
+      authSessionRequests.delete(client)
     })
 
-  anonymousSessionRequests.set(client, anonymousSessionRequest)
-  return anonymousSessionRequest
+  authSessionRequests.set(client, authSessionRequest)
+  return authSessionRequest
 }
 
 function toAuthSession(session: SessionLike | null): AuthSession | null {
