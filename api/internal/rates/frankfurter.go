@@ -35,7 +35,18 @@ type FrankfurterProvider struct {
 	lastRefreshErr error
 }
 
-func NewFrankfurterProvider(client *http.Client) *FrankfurterProvider {
+type FrankfurterOption func(*FrankfurterProvider)
+
+func WithBaseURL(baseURL string) FrankfurterOption {
+	return func(provider *FrankfurterProvider) {
+		trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+		if trimmed != "" {
+			provider.baseURL = trimmed
+		}
+	}
+}
+
+func NewFrankfurterProvider(client *http.Client, options ...FrankfurterOption) *FrankfurterProvider {
 	if client == nil {
 		client = http.DefaultClient
 	}
@@ -49,6 +60,11 @@ func NewFrankfurterProvider(client *http.Client) *FrankfurterProvider {
 		client:  client,
 		baseURL: baseURL,
 		now:     time.Now,
+	}
+	for _, option := range options {
+		if option != nil {
+			option(provider)
+		}
 	}
 	provider.cond = sync.NewCond(&provider.mu)
 	return provider

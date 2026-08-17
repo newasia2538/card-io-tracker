@@ -169,6 +169,9 @@ func mapCanonicalizeError(input TransactionInput, err error) error {
 	if strings.TrimSpace(input.Currency) == "USD" && strings.Contains(err.Error(), "get USD/THB rate:") {
 		return &Error{Kind: ErrorKindRateUnavailable, Message: "usd/thb rate unavailable", Err: err}
 	}
+	if strings.TrimSpace(input.Currency) == "USD" && errors.Is(err, errInvalidUSDRate) {
+		return &Error{Kind: ErrorKindUpstream, Message: "usd/thb rate response invalid", Err: err}
+	}
 	return &Error{Kind: ErrorKindValidation, Message: err.Error(), Err: err}
 }
 

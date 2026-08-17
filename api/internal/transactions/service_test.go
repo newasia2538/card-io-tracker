@@ -10,22 +10,22 @@ import (
 )
 
 type captureStore struct {
-	listToken       string
-	listAction      string
-	listRecords     []Transaction
-	listErr         error
-	createToken     string
-	createInput     StoredTransaction
-	createRecord    Transaction
-	createErr       error
-	updateToken     string
-	updateID        string
-	updateInput     StoredTransaction
-	updateRecord    Transaction
-	updateErr       error
-	deleteToken     string
-	deleteID        string
-	deleteErr       error
+	listToken    string
+	listAction   string
+	listRecords  []Transaction
+	listErr      error
+	createToken  string
+	createInput  StoredTransaction
+	createRecord Transaction
+	createErr    error
+	updateToken  string
+	updateID     string
+	updateInput  StoredTransaction
+	updateRecord Transaction
+	updateErr    error
+	deleteToken  string
+	deleteID     string
+	deleteErr    error
 }
 
 func (s *captureStore) List(_ context.Context, token string, action string) ([]Transaction, error) {
@@ -142,6 +142,38 @@ func TestServiceCreateReturnsRateUnavailableForUSDWithoutRate(t *testing.T) {
 	}
 	if serviceErr.Kind != ErrorKindRateUnavailable {
 		t.Fatalf("serviceErr.Kind = %q, want %q", serviceErr.Kind, ErrorKindRateUnavailable)
+	}
+}
+
+func TestServiceCreateMapsMalformedUSDRateToUpstream(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(&captureStore{}, stubRates{
+		rate: rates.Rate{
+			Base:         "EUR",
+			Quote:        "THB",
+			Value:        "35.50",
+			ProviderDate: time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC),
+		},
+	})
+
+	_, err := service.Create(context.Background(), "jwt-token", "user-123", TransactionInput{
+		Action:          "BUY",
+		CardType:        "Sport card",
+		Price:           "100.00",
+		Currency:        "USD",
+		TransactionDate: "2026-08-17",
+	})
+	if err == nil {
+		t.Fatal("Create() error = nil, want error")
+	}
+
+	var serviceErr *Error
+	if !errors.As(err, &serviceErr) {
+		t.Fatalf("Create() error = %T, want *Error", err)
+	}
+	if serviceErr.Kind != ErrorKindUpstream {
+		t.Fatalf("serviceErr.Kind = %q, want %q", serviceErr.Kind, ErrorKindUpstream)
 	}
 }
 

@@ -21,6 +21,7 @@ var allowedCardTypes = map[string]struct{}{
 }
 
 var decimalPattern = regexp.MustCompile(`^[+-]?\d+(?:\.\d+)?$`)
+var errInvalidUSDRate = errors.New("invalid USD/THB rate")
 
 func ValidateAndCanonicalize(ctx context.Context, input TransactionInput, provider rates.RateProvider) (CanonicalTransaction, error) {
 	action := strings.TrimSpace(input.Action)
@@ -81,10 +82,10 @@ func ValidateAndCanonicalize(ctx context.Context, input TransactionInput, provid
 
 	rateRat, err := parsePositiveDecimal(rate.Value)
 	if err != nil {
-		return CanonicalTransaction{}, fmt.Errorf("exchange rate must be positive: %w", err)
+		return CanonicalTransaction{}, fmt.Errorf("%w: exchange rate must be positive: %v", errInvalidUSDRate, err)
 	}
 	if rate.Base != "USD" || rate.Quote != "THB" {
-		return CanonicalTransaction{}, errors.New("exchange rate must be USD/THB")
+		return CanonicalTransaction{}, fmt.Errorf("%w: exchange rate must be USD/THB", errInvalidUSDRate)
 	}
 
 	result.PriceTHB = formatRounded(new(big.Rat).Mul(priceRat, rateRat), 2)

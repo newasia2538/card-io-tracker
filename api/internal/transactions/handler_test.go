@@ -175,6 +175,35 @@ func TestHandlerCreateReturns503WhenUSDNeedsUnavailableRate(t *testing.T) {
 	}
 }
 
+func TestHandlerCreateReturns502WhenUSDRatePayloadIsInvalid(t *testing.T) {
+	t.Parallel()
+
+	authenticator := &stubAuthenticator{user: auth.User{ID: "user-123"}}
+	service := &stubService{
+		createErr: &Error{Kind: ErrorKindUpstream, Message: "usd/thb rate response invalid"},
+	}
+	handler := NewHandler(authenticator, service)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/transactions", bytes.NewBufferString(`{"action":"BUY","card_type":"Sport card","price":"100.00","currency":"USD","transaction_date":"2026-08-17"}`))
+	req.Header.Set("Authorization", "Bearer jwt-token")
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusBadGateway)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != "upstream_unavailable" {
+		t.Fatalf("body[code] = %q, want %q", body["code"], "upstream_unavailable")
+	}
+}
+
 func TestHandlerUpdateRecalculatesUsingAuthenticatedUser(t *testing.T) {
 	t.Parallel()
 
@@ -335,5 +364,35 @@ func TestHandlerMapsStableErrorStatuses(t *testing.T) {
 				t.Fatalf("body[code] = %q, want %q", body["code"], tt.wantCode)
 			}
 		})
+	}
+}
+
+func TestHandlerRejectsTrailingSecondTopLevelJSONObject(t *testing.T) {
+	t.Parallel()
+
+	authenticator := &stubAuthenticator{user: auth.User{ID: "user-123"}}
+	service := &stubService{}
+	handler := NewHandler(authenticator, service)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/transactions", bytes.NewBufferString(`{"action":"BUY","card_type":"Sport card","price":"100.00","currency":"THB","transaction_date":"2026-08-17"}{"extra":true}`))
+	req.Header.Set("Authorization", "Bearer jwt-token")
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusBadRequest)
+	}
+	if service.createToken != "" {
+		t.Fatalf("service.createToken = %q, want empty string", service.createToken)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != "validation_failed" {
+		t.Fatalf("body[code] = %q, want %q", body["code"], "validation_failed")
 	}
 }

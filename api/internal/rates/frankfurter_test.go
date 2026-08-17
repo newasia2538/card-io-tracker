@@ -57,6 +57,26 @@ func TestUSDToTHBParsesFrankfurterJSON(t *testing.T) {
 	}
 }
 
+func TestNewFrankfurterProviderUsesBaseURLOption(t *testing.T) {
+	t.Parallel()
+
+	provider := NewFrankfurterProvider(&http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.String() != "https://config.example/v2/rate/USD/THB" {
+				t.Fatalf("url = %q, want %q", r.URL.String(), "https://config.example/v2/rate/USD/THB")
+			}
+			return jsonResponse(http.StatusOK, `{"date":"2026-08-15","base":"USD","quote":"THB","rate":35.50}`), nil
+		}),
+	}, WithBaseURL("https://config.example/"))
+	provider.now = func() time.Time {
+		return time.Date(2026, 8, 16, 9, 0, 0, 0, time.UTC)
+	}
+
+	if _, err := provider.USDToTHB(context.Background()); err != nil {
+		t.Fatalf("USDToTHB() error = %v", err)
+	}
+}
+
 func TestValidatePositiveDecimalRejectsNonDecimalGrammar(t *testing.T) {
 	t.Parallel()
 

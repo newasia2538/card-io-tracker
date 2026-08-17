@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -153,7 +154,8 @@ func decodeJSONBody(ctx context.Context, r *http.Request, out any) error {
 	if err := decoder.Decode(out); err != nil {
 		return err
 	}
-	if decoder.More() {
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return errors.New("request body must contain a single JSON object")
 	}
 	return nil

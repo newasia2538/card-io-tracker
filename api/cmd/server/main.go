@@ -19,12 +19,12 @@ import (
 )
 
 const (
-	upstreamTimeout    = 10 * time.Second
-	readHeaderTimeout  = 5 * time.Second
-	readTimeout        = 15 * time.Second
-	writeTimeout       = 15 * time.Second
-	idleTimeout        = 60 * time.Second
-	shutdownTimeout    = 10 * time.Second
+	upstreamTimeout   = 10 * time.Second
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 15 * time.Second
+	writeTimeout      = 15 * time.Second
+	idleTimeout       = 60 * time.Second
+	shutdownTimeout   = 10 * time.Second
 )
 
 func newHandler(apiHandler http.Handler) http.Handler {
@@ -60,7 +60,7 @@ func run(ctx context.Context) error {
 	httpClient := &http.Client{Timeout: upstreamTimeout}
 	authenticator := auth.NewSupabaseAuthenticator(cfg.SupabaseURL, cfg.SupabasePublishableKey, httpClient)
 	store := graphql.NewClient(cfg.SupabaseURL, cfg.SupabasePublishableKey, httpClient)
-	rateProvider := rates.NewFrankfurterProvider(httpClient)
+	rateProvider := rates.NewFrankfurterProvider(httpClient, rates.WithBaseURL(cfg.FrankfurterBaseURL))
 	service := transactions.NewService(store, rateProvider)
 	handler := newHandler(transactions.NewHandler(authenticator, service))
 	server := newServer(cfg, handler)
