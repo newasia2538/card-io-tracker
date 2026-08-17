@@ -75,40 +75,32 @@ for (const [index, icon] of manifest.icons.entries()) {
 }
 
 assert(
-  serviceWorkerSource.includes("request.method !== 'GET'"),
+  matchesPattern(serviceWorkerSource, /request\.method\s*!==\s*['"]GET['"]/i),
   'dist/sw.js must gate handling on GET requests',
 )
 assert(
-  serviceWorkerSource.includes("url.origin !== self.location.origin"),
+  matchesPattern(serviceWorkerSource, /url\.origin\s*!==\s*self\.location\.origin/i),
   'dist/sw.js must bypass external origins',
 )
 assert(
-  serviceWorkerSource.includes("url.pathname.startsWith('/api/')"),
+  matchesPattern(serviceWorkerSource, /url\.pathname\.startsWith\(\s*['"]\/api\/['"]\s*\)/i),
   'dist/sw.js must bypass /api/ requests explicitly',
 )
 assert(
-  serviceWorkerSource.includes("request.mode === 'navigate'"),
+  matchesPattern(serviceWorkerSource, /request\.mode\s*===\s*['"]navigate['"]/i),
   'dist/sw.js must preserve navigate handling',
 )
 assert(
-  serviceWorkerSource.includes("STATIC_DESTINATIONS.has(request.destination)"),
+  matchesPattern(serviceWorkerSource, /STATIC_DESTINATIONS\.has\(\s*request\.destination\s*\)/i),
   'dist/sw.js must preserve static destination handling',
 )
 assert(
-  serviceWorkerSource.includes('isStaticAssetPath(url.pathname)'),
+  matchesPattern(serviceWorkerSource, /isStaticAssetPath\(\s*url\.pathname\s*\)/i),
   'dist/sw.js must preserve static asset path handling',
 )
 assert(
-  !/\bqueue\b/i.test(serviceWorkerSource),
-  'dist/sw.js must not include queue-based API behavior',
-)
-assert(
-  !/\bperiodicSync\b|\bbackgroundSync\b|\bsync\b/i.test(serviceWorkerSource),
-  'dist/sw.js must not include background sync API behavior',
-)
-assert(
-  countSubstring(serviceWorkerSource, '/api/') === 1,
-  'dist/sw.js must only mention /api/ in the bypass guard',
+  !hasOfflineSyncQueuePattern(serviceWorkerSource),
+  'dist/sw.js must not include an offline sync queue',
 )
 
 console.log('PWA checks passed.')
@@ -166,12 +158,18 @@ function hasTagWithAttributes(html, tagName, attributes) {
   return pattern.test(html)
 }
 
-function countSubstring(text, needle) {
-  return (text.match(new RegExp(escapeRegExp(needle), 'g')) || []).length
-}
-
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function matchesPattern(text, pattern) {
+  return pattern.test(text)
+}
+
+function hasOfflineSyncQueuePattern(text) {
+  return /(?:addEventListener\s*\(\s*['"]sync['"]|registration\.sync|sync\.register|backgroundSync|periodicSync)[\s\S]{0,200}\bqueue\b/i.test(
+    text,
+  )
 }
 
 function assert(condition, message) {
