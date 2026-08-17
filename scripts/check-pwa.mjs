@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import vm from 'node:vm'
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(scriptDirectory, '..')
@@ -16,6 +17,7 @@ await assertFileExists(serviceWorkerPath)
 const indexHtml = await readFile(indexHtmlPath, 'utf8')
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
 const serviceWorkerSource = await readFile(serviceWorkerPath, 'utf8')
+const serviceWorkerRuntime = evaluateServiceWorker(serviceWorkerSource)
 
 assert(
   hasTagWithAttributes(indexHtml, 'link', {
@@ -74,34 +76,36 @@ for (const [index, icon] of manifest.icons.entries()) {
   await assertFileExists(iconPath)
 }
 
+assert(typeof serviceWorkerRuntime.listeners.fetch === 'function', 'dist/sw.js must register a fetch listener')
 assert(
-  matchesPattern(serviceWorkerSource, /request\.method\s*!==\s*['"]GET['"]/i),
-  'dist/sw.js must gate handling on GET requests',
+  serviceWorkerRuntime.listeners.sync === undefined,
+  'dist/sw.js must not register a sync event listener',
 )
-assert(
-  matchesPattern(serviceWorkerSource, /url\.origin\s*!==\s*self\.location\.origin/i),
-  'dist/sw.js must bypass external origins',
-)
-assert(
-  matchesPattern(serviceWorkerSource, /url\.pathname\.startsWith\(\s*['"]\/api\/['"]\s*\)/i),
-  'dist/sw.js must bypass /api/ requests explicitly',
-)
-assert(
-  matchesPattern(serviceWorkerSource, /request\.mode\s*===\s*['"]navigate['"]/i),
-  'dist/sw.js must preserve navigate handling',
-)
-assert(
-  matchesPattern(serviceWorkerSource, /STATIC_DESTINATIONS\.has\(\s*request\.destination\s*\)/i),
-  'dist/sw.js must preserve static destination handling',
-)
-assert(
-  matchesPattern(serviceWorkerSource, /isStaticAssetPath\(\s*url\.pathname\s*\)/i),
-  'dist/sw.js must preserve static asset path handling',
-)
-assert(
-  !hasOfflineSyncQueuePattern(serviceWorkerSource),
-  'dist/sw.js must not include an offline sync queue',
-)
+
+await assertFetchHandled(serviceWorkerRuntime, {
+  url: `${serviceWorkerRuntime.origin}/assets/app.js`,
+  method: 'GET',
+  destination: 'script',
+  mode: 'same-origin',
+})
+await assertFetchBypassed(serviceWorkerRuntime, {
+  url: `${serviceWorkerRuntime.origin}/api/cards`,
+  method: 'GET',
+  destination: '',
+  mode: 'same-origin',
+}, 'dist/sw.js must bypass same-origin /api/ GET requests')
+await assertFetchBypassed(serviceWorkerRuntime, {
+  url: `${serviceWorkerRuntime.origin}/cards`,
+  method: 'POST',
+  destination: '',
+  mode: 'same-origin',
+}, 'dist/sw.js must bypass same-origin POST requests')
+await assertFetchBypassed(serviceWorkerRuntime, {
+  url: 'https://cdn.example.com/app.js',
+  method: 'GET',
+  destination: 'script',
+  mode: 'cors',
+}, 'dist/sw.js must bypass external-origin GET requests')
 
 console.log('PWA checks passed.')
 
@@ -162,18 +166,126 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function matchesPattern(text, pattern) {
-  return pattern.test(text)
-}
-
-function hasOfflineSyncQueuePattern(text) {
-  return /(?:addEventListener\s*\(\s*['"]sync['"]|registration\.sync|sync\.register|backgroundSync|periodicSync)[\s\S]{0,200}\bqueue\b/i.test(
-    text,
-  )
-}
-
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message)
+  }
+}
+
+function evaluateServiceWorker(source) {
+  const listeners = {}
+  const runtime = {
+    origin: 'https://card-ledger.test',
+    fetchCalls: [],
+    cachePuts: [],
+  }
+
+  class FakeResponse {
+    constructor(body = '', init = {}) {
+      this.body = body
+      this.status = init.status ?? 200
+      this.ok = this.status >= 200 && this.status < 300
+    }
+
+    clone() {
+      return new FakeResponse(this.body, { status: this.status })
+    }
+
+    static error() {
+      return new FakeResponse('', { status: 500 })
+    }
+  }
+
+  const cache = {
+    async addAll() {},
+    async match() {
+      return undefined
+    },
+    async put(request, response) {
+      runtime.cachePuts.push({ request, response })
+    },
+  }
+
+  const sandbox = {
+    URL,
+    Promise,
+    Set,
+    Response: FakeResponse,
+    caches: {
+      async open() {
+        return cache
+      },
+      async keys() {
+        return []
+      },
+      async delete() {
+        return true
+      },
+    },
+    fetch: async (request) => {
+      runtime.fetchCalls.push(request)
+      return new FakeResponse('ok')
+    },
+    self: {
+      location: { origin: runtime.origin },
+      clients: {
+        claim() {},
+      },
+      skipWaiting() {},
+      addEventListener(type, listener) {
+        listeners[type] = listener
+      },
+    },
+  }
+
+  vm.runInNewContext(source, sandbox, {
+    filename: serviceWorkerPath,
+  })
+
+  return {
+    ...runtime,
+    listeners,
+    Response: FakeResponse,
+  }
+}
+
+async function assertFetchHandled(runtime, request) {
+  const outcome = await dispatchFetch(runtime, request)
+
+  assert(outcome.responded, 'dist/sw.js must handle same-origin GET static requests')
+  assert(outcome.response instanceof runtime.Response, 'dist/sw.js must resolve handled static requests')
+  assert(outcome.response.ok, 'dist/sw.js must return a successful response for handled static requests')
+  assert(runtime.fetchCalls.length === outcome.fetchCallsBefore + 1, 'dist/sw.js must fetch handled static assets')
+  assert(runtime.cachePuts.length === outcome.cachePutsBefore + 1, 'dist/sw.js must cache handled static assets')
+}
+
+async function assertFetchBypassed(runtime, request, message) {
+  const outcome = await dispatchFetch(runtime, request)
+
+  assert(!outcome.responded, message)
+  assert(runtime.fetchCalls.length === outcome.fetchCallsBefore, message)
+  assert(runtime.cachePuts.length === outcome.cachePutsBefore, message)
+}
+
+async function dispatchFetch(runtime, request) {
+  const fetchListener = runtime.listeners.fetch
+  const fetchCallsBefore = runtime.fetchCalls.length
+  const cachePutsBefore = runtime.cachePuts.length
+  let responsePromise = null
+
+  fetchListener({
+    request,
+    respondWith(promise) {
+      responsePromise = Promise.resolve(promise)
+    },
+  })
+
+  const response = responsePromise ? await responsePromise : null
+
+  return {
+    cachePutsBefore,
+    fetchCallsBefore,
+    responded: responsePromise !== null,
+    response,
   }
 }

@@ -17,7 +17,7 @@
 - `public/icon.svg`
   - Supplies the install icon asset used by the manifest and document head.
 - `scripts/check-pwa.mjs`
-  - Verifies the built PWA output includes the manifest link, theme color, icon metadata, manifest icon assets, and refactor-tolerant service worker request guards.
+  - Verifies the built PWA output includes the manifest link, theme color, icon metadata, manifest icon assets, and a VM-based service worker behavior check for handled versus bypassed requests with no sync listener.
 
 ## Docs
 
@@ -29,4 +29,5 @@
 
 - `npm run build` passed on the checked-out worktree on Monday, August 17, 2026.
 - `node scripts/check-pwa.mjs` passed against the freshly built `dist/index.html`, `dist/manifest.webmanifest`, and `dist/sw.js` on Monday, August 17, 2026.
+- The service worker checker now exercises the built `dist/sw.js` boundary in a Node VM with fake `self`, `caches`, and `fetch` instead of relying on source-substring assertions.
 - The requested PWA shell files are present in the worktree and ready for handoff.
