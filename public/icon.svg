@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Card Ledger icon</title>
+  <desc id="desc">A teal ledger card showing THB and USD trading marks.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e" />
+      <stop offset="100%" stop-color="#134e4a" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)" />
+  <rect x="108" y="96" width="296" height="320" rx="32" fill="#f5f0e8" />
+  <rect x="144" y="140" width="224" height="56" rx="18" fill="#ccfbf1" />
+  <path d="M180 246h152" stroke="#0f766e" stroke-linecap="round" stroke-width="20" />
+  <path d="M180 296h112" stroke="#0f766e" stroke-linecap="round" stroke-width="20" />
+  <path d="M180 346h88" stroke="#0f766e" stroke-linecap="round" stroke-width="20" />
+  <circle cx="336" cy="320" r="54" fill="#0f766e" />
+  <text x="256" y="178" fill="#134e4a" font-family="Arial, sans-serif" font-size="34" font-weight="700" text-anchor="middle">
+    THB / USD
+  </text>
+  <text x="336" y="333" fill="#f5f0e8" font-family="Arial, sans-serif" font-size="44" font-weight="700" text-anchor="middle">
+    ฿$
+  </text>
+</svg>
