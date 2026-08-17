@@ -71,6 +71,39 @@ func TestValidateAndCanonicalizeRejectsInvalidInputs(t *testing.T) {
 			want: "price must be positive",
 		},
 		{
+			name: "fraction grammar price",
+			input: TransactionInput{
+				Action:          "BUY",
+				CardType:        "Sport card",
+				Price:           "1/2",
+				Currency:        "THB",
+				TransactionDate: "2026-08-16",
+			},
+			want: "price must be a decimal",
+		},
+		{
+			name: "scientific notation price",
+			input: TransactionInput{
+				Action:          "BUY",
+				CardType:        "Sport card",
+				Price:           "1e2",
+				Currency:        "THB",
+				TransactionDate: "2026-08-16",
+			},
+			want: "price must be a decimal",
+		},
+		{
+			name: "hex float price",
+			input: TransactionInput{
+				Action:          "BUY",
+				CardType:        "Sport card",
+				Price:           "0x10p0",
+				Currency:        "THB",
+				TransactionDate: "2026-08-16",
+			},
+			want: "price must be a decimal",
+		},
+		{
 			name: "invalid date",
 			input: TransactionInput{
 				Action:          "BUY",
@@ -128,7 +161,7 @@ func TestValidateAndCanonicalizeTHBUsesCanonicalRateOne(t *testing.T) {
 	got, err := ValidateAndCanonicalize(context.Background(), TransactionInput{
 		Action:          "BUY",
 		CardType:        "Sport card",
-		Price:           "100.125",
+		Price:           "100.12",
 		Currency:        "THB",
 		TransactionDate: "2026-08-16",
 	}, nil)
@@ -136,8 +169,11 @@ func TestValidateAndCanonicalizeTHBUsesCanonicalRateOne(t *testing.T) {
 		t.Fatalf("ValidateAndCanonicalize() error = %v", err)
 	}
 
-	if got.PriceTHB != "100.13" {
-		t.Fatalf("PriceTHB = %q, want %q", got.PriceTHB, "100.13")
+	if got.Price != "100.12" {
+		t.Fatalf("Price = %q, want %q", got.Price, "100.12")
+	}
+	if got.PriceTHB != "100.12" {
+		t.Fatalf("PriceTHB = %q, want %q", got.PriceTHB, "100.12")
 	}
 	if got.ExchangeRateToTHB != "1" {
 		t.Fatalf("ExchangeRateToTHB = %q, want %q", got.ExchangeRateToTHB, "1")
@@ -172,6 +208,9 @@ func TestValidateAndCanonicalizeUSDConvertsExactly(t *testing.T) {
 	if got.PriceTHB != "3550.00" {
 		t.Fatalf("PriceTHB = %q, want %q", got.PriceTHB, "3550.00")
 	}
+	if got.Price != "100.00" {
+		t.Fatalf("Price = %q, want %q", got.Price, "100.00")
+	}
 	if got.ExchangeRateToTHB != "35.50" {
 		t.Fatalf("ExchangeRateToTHB = %q, want %q", got.ExchangeRateToTHB, "35.50")
 	}
@@ -180,6 +219,54 @@ func TestValidateAndCanonicalizeUSDConvertsExactly(t *testing.T) {
 	}
 	if got.CustomCardType == nil || *got.CustomCardType != "Vintage Promo" {
 		t.Fatalf("CustomCardType = %v, want %q", got.CustomCardType, "Vintage Promo")
+	}
+}
+
+func TestValidateAndCanonicalizeRejectsPriceWithMoreThanTwoFractionalDigits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		currency string
+		provider rates.RateProvider
+	}{
+		{
+			name:     "thb price",
+			currency: "THB",
+		},
+		{
+			name:     "usd price",
+			currency: "USD",
+			provider: stubRateProvider{
+				rate: rates.Rate{
+					Base:         "USD",
+					Quote:        "THB",
+					Value:        "35.50",
+					ProviderDate: time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := ValidateAndCanonicalize(context.Background(), TransactionInput{
+				Action:          "BUY",
+				CardType:        "Sport card",
+				Price:           "100.125",
+				Currency:        tt.currency,
+				TransactionDate: "2026-08-16",
+			}, tt.provider)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), "price must have at most 2 decimal places") {
+				t.Fatalf("error = %q, want substring %q", err.Error(), "price must have at most 2 decimal places")
+			}
+		})
 	}
 }
 

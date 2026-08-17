@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -18,14 +19,20 @@ const (
 	cacheTTL                  = 24 * time.Hour
 )
 
+var decimalPattern = regexp.MustCompile(`^[+-]?\d+(?:\.\d+)?$`)
+
 type FrankfurterProvider struct {
 	client  *http.Client
 	baseURL string
 	now     func() time.Time
 
-	mu      sync.Mutex
-	cached  Rate
-	hasRate bool
+	mu             sync.Mutex
+	cond           *sync.Cond
+	cached         Rate
+	hasRate        bool
+	refreshing     bool
+	refreshSeq     uint64
+	lastRefreshErr error
 }
 
 func NewFrankfurterProvider(client *http.Client) *FrankfurterProvider {
@@ -38,42 +45,77 @@ func NewFrankfurterProvider(client *http.Client) *FrankfurterProvider {
 		baseURL = defaultFrankfurterBaseURL
 	}
 
-	return &FrankfurterProvider{
+	provider := &FrankfurterProvider{
 		client:  client,
 		baseURL: baseURL,
 		now:     time.Now,
 	}
+	provider.cond = sync.NewCond(&provider.mu)
+	return provider
 }
 
 func (p *FrankfurterProvider) USDToTHB(ctx context.Context) (Rate, error) {
 	p.mu.Lock()
-	if p.hasRate && p.now().Sub(p.cached.FetchedAt) < cacheTTL {
-		rate := p.cached
-		p.mu.Unlock()
-		return rate, nil
-	}
-	p.mu.Unlock()
-
-	rate, err := p.fetch(ctx)
-	if err != nil {
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		if !p.hasRate {
-			return Rate{}, err
+	p.ensureCondLocked()
+	for {
+		if p.hasRate && p.now().Sub(p.cached.FetchedAt) < cacheTTL {
+			rate := p.cached
+			p.mu.Unlock()
+			return rate, nil
 		}
 
-		stale := p.cached
-		stale.Stale = true
-		return stale, nil
+		observedSeq := p.refreshSeq
+		if p.refreshing {
+			p.cond.Wait()
+			if p.refreshSeq != observedSeq {
+				if p.hasRate && p.now().Sub(p.cached.FetchedAt) < cacheTTL {
+					rate := p.cached
+					p.mu.Unlock()
+					return rate, nil
+				}
+				if p.hasRate {
+					stale := p.cached
+					stale.Stale = true
+					p.mu.Unlock()
+					return stale, nil
+				}
+
+				err := p.lastRefreshErr
+				p.mu.Unlock()
+				return Rate{}, err
+			}
+			continue
+		}
+
+		p.refreshing = true
+		p.mu.Unlock()
+
+		rate, err := p.fetch(ctx)
+
+		p.mu.Lock()
+		p.refreshing = false
+		p.refreshSeq++
+		p.lastRefreshErr = err
+		if err == nil {
+			p.cached = rate
+			p.hasRate = true
+		}
+		p.cond.Broadcast()
+
+		if err == nil {
+			p.mu.Unlock()
+			return rate, nil
+		}
+		if p.hasRate {
+			stale := p.cached
+			stale.Stale = true
+			p.mu.Unlock()
+			return stale, nil
+		}
+
+		p.mu.Unlock()
+		return Rate{}, err
 	}
-
-	p.mu.Lock()
-	p.cached = rate
-	p.hasRate = true
-	p.mu.Unlock()
-
-	return rate, nil
 }
 
 type frankfurterResponse struct {
@@ -127,6 +169,10 @@ func (p *FrankfurterProvider) fetch(ctx context.Context) (Rate, error) {
 }
 
 func validatePositiveDecimal(value string) error {
+	if !decimalPattern.MatchString(value) {
+		return errors.New("must be a decimal")
+	}
+
 	rat, ok := new(big.Rat).SetString(value)
 	if !ok {
 		return errors.New("must be a decimal")
@@ -135,4 +181,10 @@ func validatePositiveDecimal(value string) error {
 		return errors.New("must be positive")
 	}
 	return nil
+}
+
+func (p *FrankfurterProvider) ensureCondLocked() {
+	if p.cond == nil {
+		p.cond = sync.NewCond(&p.mu)
+	}
 }

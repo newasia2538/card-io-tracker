@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,6 +19,8 @@ var allowedCardTypes = map[string]struct{}{
 	"JH Card":        {},
 	"Others":         {},
 }
+
+var decimalPattern = regexp.MustCompile(`^[+-]?\d+(?:\.\d+)?$`)
 
 func ValidateAndCanonicalize(ctx context.Context, input TransactionInput, provider rates.RateProvider) (CanonicalTransaction, error) {
 	action := strings.TrimSpace(input.Action)
@@ -107,6 +110,10 @@ func validateCustomCardType(cardType string, custom *string) (*string, error) {
 }
 
 func parsePositiveDecimal(value string) (*big.Rat, error) {
+	if !decimalPattern.MatchString(value) {
+		return nil, errors.New("price must be a decimal")
+	}
+
 	rat, ok := new(big.Rat).SetString(value)
 	if !ok {
 		return nil, errors.New("price must be a decimal")
@@ -114,7 +121,19 @@ func parsePositiveDecimal(value string) (*big.Rat, error) {
 	if rat.Sign() <= 0 {
 		return nil, errors.New("price must be positive")
 	}
+	if fractionalDigits(value) > 2 {
+		return nil, errors.New("price must have at most 2 decimal places")
+	}
 	return rat, nil
+}
+
+func fractionalDigits(value string) int {
+	index := strings.IndexByte(value, '.')
+	if index == -1 {
+		return 0
+	}
+
+	return len(value) - index - 1
 }
 
 func parseDate(value string, message string) (time.Time, error) {
