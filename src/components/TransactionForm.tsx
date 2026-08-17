@@ -62,15 +62,15 @@ export function TransactionForm({
     let isCancelled = false
 
     if (draft.currency !== 'USD' || !draft.price.trim()) {
+      setExchangeRate(null)
       setIsLoadingRate(false)
-      if (!draft.price.trim()) {
-        setRateError(null)
-      }
+      setRateError(null)
       return () => {
         isCancelled = true
       }
     }
 
+    setExchangeRate(null)
     setIsLoadingRate(true)
     setRateError(null)
 
@@ -87,6 +87,7 @@ export function TransactionForm({
           return
         }
 
+        setExchangeRate(null)
         setRateError(toErrorMessage(error))
       })
       .finally(() => {

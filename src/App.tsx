@@ -68,13 +68,13 @@ export function App({
         }
 
         setSession(nextSession)
-
-        const ledgerData = await refreshTransactions(apiClient)
-        if (isCancelled) {
-          return
-        }
-
-        applyTransactionState(ledgerData, setBuyTransactions, setSellTransactions, setExchangeRate)
+        await refreshAndApplyTransactions({
+          client: apiClient,
+          isCancelled: () => isCancelled,
+          setBuyTransactions,
+          setExchangeRate,
+          setSellTransactions,
+        })
         setBootstrapErrorMessage(null)
         setStatusMessage('Ledger ready.')
       } catch (error) {
@@ -103,21 +103,21 @@ export function App({
     try {
       if (editingTransaction) {
         await apiClient.updateTransaction(editingTransaction.id, draft)
-        applyTransactionState(
-          await refreshTransactions(apiClient),
+        await refreshAndApplyTransactions({
+          client: apiClient,
           setBuyTransactions,
-          setSellTransactions,
           setExchangeRate,
-        )
+          setSellTransactions,
+        })
         setStatusMessage('Transaction updated.')
       } else {
         await apiClient.createTransaction(draft)
-        applyTransactionState(
-          await refreshTransactions(apiClient),
+        await refreshAndApplyTransactions({
+          client: apiClient,
           setBuyTransactions,
-          setSellTransactions,
           setExchangeRate,
-        )
+          setSellTransactions,
+        })
         setStatusMessage('Transaction saved.')
       }
 
@@ -136,12 +136,12 @@ export function App({
 
     try {
       await apiClient.deleteTransaction(id)
-      applyTransactionState(
-        await refreshTransactions(apiClient),
+      await refreshAndApplyTransactions({
+        client: apiClient,
         setBuyTransactions,
-        setSellTransactions,
         setExchangeRate,
-      )
+        setSellTransactions,
+      })
       if (isDeletingEditingTransaction) {
         setEditingTransaction(null)
         setResetSignal((value) => value + 1)
@@ -277,9 +277,30 @@ function applyTransactionState(
 ) {
   setBuyTransactions(ledgerData.buyTransactions)
   setSellTransactions(ledgerData.sellTransactions)
-  if (ledgerData.exchangeRate) {
-    setExchangeRate(ledgerData.exchangeRate)
+  setExchangeRate(ledgerData.exchangeRate)
+}
+
+async function refreshAndApplyTransactions({
+  client,
+  setBuyTransactions,
+  setExchangeRate,
+  setSellTransactions,
+  isCancelled = () => false,
+}: {
+  client: ApiClient
+  setBuyTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>
+  setExchangeRate: React.Dispatch<React.SetStateAction<ExchangeRate | null>>
+  setSellTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>
+  isCancelled?: () => boolean
+}) {
+  setExchangeRate(null)
+
+  const ledgerData = await refreshTransactions(client)
+  if (isCancelled()) {
+    return
   }
+
+  applyTransactionState(ledgerData, setBuyTransactions, setSellTransactions, setExchangeRate)
 }
 
 function toErrorMessage(error: unknown): string {

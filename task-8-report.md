@@ -3,9 +3,10 @@
 ## Summary
 
 - Task 8 verification completed on Monday, August 17, 2026 in the isolated `card-ledger` worktree.
-- All requested automated checks passed after a docs-only handoff fix to `README.md`.
+- Final review blockers were resolved in product code, local Supabase config, and handoff docs.
+- All requested automated checks passed after the stale exchange-rate regressions, local auth-linking config, and startup docs were updated.
 - Live Supabase integration verification was skipped because the required frontend and backend env values were not present in the worktree or process environment.
-- Reviewer artifacts `task-3-review-fix.md` and `task-7-review-final.md` were left untracked and unstaged.
+- No standalone reviewer-note files such as `final-review.md`, `task-3-review-fix.md`, or `task-7-review-final.md` were present in this worktree during the final blocker pass.
 
 ## Automated Verification
 
@@ -107,11 +108,14 @@ PWA registration and caching bypass:
 
 ## Fixes Applied
 
-- Updated [`README.md`](/Users/11356979/vibe-code-projects/jo-car-d-web-app/.worktrees/card-ledger/README.md:21) to make setup, migration, local run, and account-upgrade handoff steps explicit.
+- Enabled local Supabase manual account linking and aligned the allowed auth return URLs with the Vite dev server in [`supabase/config.toml`](/Users/11356979/vibe-code-projects/jo-car-d-web-app/.worktrees/card-ledger/supabase/config.toml:159).
+- Updated [`README.md`](/Users/11356979/vibe-code-projects/jo-car-d-web-app/.worktrees/card-ledger/README.md:21) so the local Supabase setup, Go startup command, and account-upgrade return flow match the working dev environment.
+- Cleared cached exchange-rate state before each ledger refresh and preserved a `null` rate when a refresh-rate reload fails in [`src/App.tsx`](/Users/11356979/vibe-code-projects/jo-car-d-web-app/.worktrees/card-ledger/src/App.tsx:72).
+- Cleared cached USD preview state before each rate lookup and on lookup failure in [`src/components/TransactionForm.tsx`](/Users/11356979/vibe-code-projects/jo-car-d-web-app/.worktrees/card-ledger/src/components/TransactionForm.tsx:55).
+- Added regressions that prove stale USD preview and summary rate data are removed on refresh attempts and remain unavailable after refresh failures in [`src/App.test.tsx`](/Users/11356979/vibe-code-projects/jo-car-d-web-app/.worktrees/card-ledger/src/App.test.tsx:402) and [`src/components/TransactionForm.test.tsx`](/Users/11356979/vibe-code-projects/jo-car-d-web-app/.worktrees/card-ledger/src/components/TransactionForm.test.tsx:81).
 
 ## Final State
 
-- Product code did not require changes during Task 8.
-- Documentation was tightened for handoff clarity.
+- Product code, tests, local Supabase auth config, and handoff docs were updated to clear the final review blockers.
 - Automated verification is green.
 - Live integration remains pending until valid Supabase project credentials are supplied.

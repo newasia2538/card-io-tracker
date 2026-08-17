@@ -400,6 +400,65 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Buy (0)' })).toBeInTheDocument()
   })
 
+  it('clears the visible USD summary rate when a refresh starts and keeps it cleared if the rate refresh fails', async () => {
+    const user = userEvent.setup()
+    const refreshedBuy = createDeferred<TransactionRecord[]>()
+    const refreshedSell = createDeferred<TransactionRecord[]>()
+    const refreshedRate = createDeferred<ExchangeRate>()
+    const apiClient = createApiClientDouble({
+      listTransactions: vi
+        .fn()
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? buyTransactions : sellTransactions,
+        )
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? buyTransactions : sellTransactions,
+        )
+        .mockImplementationOnce((action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? refreshedBuy.promise : refreshedSell.promise,
+        )
+        .mockImplementationOnce((action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? refreshedBuy.promise : refreshedSell.promise,
+        ),
+      getExchangeRate: vi
+        .fn()
+        .mockResolvedValueOnce(exchangeRate)
+        .mockImplementationOnce(() => refreshedRate.promise),
+    })
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+
+    await user.click(screen.getByRole('button', { name: 'USD' }))
+    expect(screen.getByText('Source: Frankfurter · 2026-08-17')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Price'), '2500')
+    await user.click(screen.getByRole('button', { name: 'SAVE' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('USD summary unavailable until exchange rate loads.')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Source: Frankfurter · 2026-08-17')).not.toBeInTheDocument()
+
+    refreshedRate.reject(new Error('Rate unavailable'))
+    refreshedBuy.resolve(buyTransactions)
+    refreshedSell.resolve(sellTransactions)
+
+    await waitFor(() => {
+      expect(screen.getByText('Transaction saved.')).toBeInTheDocument()
+    })
+    expect(screen.getByText('USD summary unavailable until exchange rate loads.')).toBeInTheDocument()
+    expect(screen.queryByText('Source: Frankfurter · 2026-08-17')).not.toBeInTheDocument()
+  })
+
   it('closes the upgrade flow only when the verified session keeps the same user id', async () => {
     const user = userEvent.setup()
     const updateUser = vi

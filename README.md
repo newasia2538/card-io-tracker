@@ -45,17 +45,18 @@ export PORT="8080"
 ## Supabase Setup
 
 1. Enable anonymous sign-ins in the Supabase Auth settings so the browser can create a session on first load.
-2. Ensure the `pg_graphql` extension is enabled for the project before using the generated GraphQL collections.
-3. Apply the latest migration from `supabase/migrations/`.
+2. For local Supabase CLI auth flows, keep anonymous sign-ins and manual account linking enabled, with redirect URLs that include both `http://localhost:5173` and `http://127.0.0.1:5173`.
+3. Ensure the `pg_graphql` extension is enabled for the project before using the generated GraphQL collections.
+4. Apply the latest migration from `supabase/migrations/`.
    - If you use the Supabase CLI, run `supabase db push`.
    - If you use the hosted dashboard only, apply `supabase/migrations/20260816210517_create_transactions.sql` in the SQL editor.
-4. Keep the transaction RLS policies in place so every query and mutation stays scoped to `auth.uid()`.
-5. Keep using the publishable key on both the frontend and the Go API. The Go API forwards the user JWT with that publishable key to Supabase GraphQL and does not use a service-role key.
+5. Keep the transaction RLS policies in place so every query and mutation stays scoped to `auth.uid()`.
+6. Keep using the publishable key on both the frontend and the Go API. The Go API forwards the user JWT with that publishable key to Supabase GraphQL and does not use a service-role key.
 
 ## Local Run
 
 1. Start the API from the repository root:
-   `go run ./api/cmd/server`
+   `cd api && go run ./cmd/server`
 2. Start the frontend dev server in another terminal:
    `npm run dev`
 3. Open the Vite URL shown in the terminal and wait for the app to create an anonymous Supabase session automatically.
@@ -71,7 +72,7 @@ export PORT="8080"
 2. Open the `Upgrade account` flow.
 3. Enter the email address and submit the verification request.
 4. Complete the verification email in the same Supabase account flow.
-5. Return to the app, choose `I've verified my email`, then set the password.
+5. Return through either `http://localhost:5173` or `http://127.0.0.1:5173`, choose `I've verified my email`, then set the password.
 6. Confirm the verified session keeps the same Supabase user ID so the existing anonymous rows remain attached.
 
 ## PWA + Network Behavior

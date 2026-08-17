@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -80,6 +80,50 @@ describe('TransactionForm', () => {
     await waitFor(() => {
       expect(screen.getByText('Cached rate')).toBeInTheDocument()
     })
+  })
+
+  it('clears the previous USD preview while a new rate request is pending and keeps submit blocked if it fails', async () => {
+    const user = userEvent.setup()
+    const pendingRate = createDeferred<ExchangeRate>()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const getExchangeRate = vi
+      .fn<() => Promise<ExchangeRate>>()
+      .mockResolvedValueOnce(freshRate)
+      .mockImplementationOnce(() => pendingRate.promise)
+
+    renderForm({ getExchangeRate, onSubmit })
+
+    await user.selectOptions(screen.getByLabelText('Currency'), 'USD')
+    fireEvent.change(screen.getByLabelText('Price'), {
+      target: { value: '100' },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('1 USD = ฿35.50 THB')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByLabelText('Price'), {
+      target: { value: '200' },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Loading latest USD rate…')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('1 USD = ฿35.50 THB')).not.toBeInTheDocument()
+    expect(screen.queryByText('≈ ฿7100.00 THB')).not.toBeInTheDocument()
+
+    pendingRate.reject(new Error('Rate unavailable'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Rate unavailable')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('1 USD = ฿35.50 THB')).not.toBeInTheDocument()
+    expect(screen.queryByText('≈ ฿7100.00 THB')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'SAVE' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('A USD to THB rate is required before saving.')).toBeInTheDocument()
   })
 
   it('validates required fields before saving', async () => {
@@ -207,4 +251,19 @@ function getToday(): string {
   const month = `${today.getMonth() + 1}`.padStart(2, '0')
   const day = `${today.getDate()}`.padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+
+  return {
+    promise,
+    reject,
+    resolve,
+  }
 }
