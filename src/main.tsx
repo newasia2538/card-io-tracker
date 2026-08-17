@@ -1,9 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-
-function App() {
-  return <main><h1>Card Ledger</h1></main>
-}
+import { App } from './App'
+import './styles.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1,0 +1,279 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+
+import { App } from './App'
+import type { ApiClient } from './lib/api'
+import type { AuthSession, ExchangeRate, TransactionRecord } from './types'
+
+const anonymousSession: AuthSession = {
+  accessToken: 'jwt-token',
+  userId: 'user-1',
+  isAnonymous: true,
+}
+
+const authenticatedSession: AuthSession = {
+  accessToken: 'jwt-token',
+  userId: 'user-1',
+  isAnonymous: false,
+}
+
+const exchangeRate: ExchangeRate = {
+  base: 'USD',
+  quote: 'THB',
+  rate: '35.50',
+  providerDate: '2026-08-17',
+  stale: false,
+}
+
+const buyTransactions: TransactionRecord[] = [
+  {
+    id: 'buy-1',
+    userId: 'user-1',
+    action: 'BUY',
+    cardType: 'Sport card',
+    customCardType: null,
+    price: '1000.00',
+    currency: 'THB',
+    priceThb: '1000.00',
+    exchangeRateToThb: '1.00',
+    exchangeRateDate: '2026-08-17',
+    transactionDate: '2026-08-17',
+    createdAt: '2026-08-17T00:00:00Z',
+    updatedAt: '2026-08-17T00:00:00Z',
+  },
+]
+
+const sellTransactions: TransactionRecord[] = [
+  {
+    id: 'sell-1',
+    userId: 'user-1',
+    action: 'SELL',
+    cardType: 'Pokemon card',
+    customCardType: null,
+    price: '100.00',
+    currency: 'USD',
+    priceThb: '3550.00',
+    exchangeRateToThb: '35.50',
+    exchangeRateDate: '2026-08-17',
+    transactionDate: '2026-08-16',
+    createdAt: '2026-08-16T00:00:00Z',
+    updatedAt: '2026-08-16T00:00:00Z',
+  },
+]
+
+describe('App', () => {
+  it('calls ensureAuthSession before loading data and shows anonymous-only upgrade controls', async () => {
+    const authLoader = vi.fn().mockResolvedValue(anonymousSession)
+    const apiClient = createApiClientDouble()
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={authLoader}
+        locale="th-TH"
+      />,
+    )
+
+    expect(screen.getByText('Loading your ledger…')).toBeInTheDocument()
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+
+    expect(authLoader.mock.invocationCallOrder[0]).toBeLessThan(
+      (apiClient.listTransactions as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+    )
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('BUY')
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('SELL')
+    expect(screen.getByRole('button', { name: 'Upgrade account' })).toBeInTheDocument()
+  })
+
+  it('refreshes after save and keeps the active tab plus display currency', async () => {
+    const user = userEvent.setup()
+    const apiClient = createApiClientDouble({
+      listTransactions: vi
+        .fn()
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? buyTransactions : sellTransactions,
+        )
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? buyTransactions : sellTransactions,
+        )
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY'
+            ? buyTransactions
+            : [
+                {
+                  ...sellTransactions[0],
+                  id: 'sell-2',
+                  cardType: 'One Piece Card',
+                  price: '120.00',
+                  priceThb: '4260.00',
+                },
+                ...sellTransactions,
+              ],
+        )
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY'
+            ? buyTransactions
+            : [
+                {
+                  ...sellTransactions[0],
+                  id: 'sell-2',
+                  cardType: 'One Piece Card',
+                  price: '120.00',
+                  priceThb: '4260.00',
+                },
+                ...sellTransactions,
+              ],
+        ),
+    })
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+
+    await user.click(screen.getByRole('button', { name: 'Sell (1)' }))
+    await user.click(screen.getByRole('button', { name: 'USD' }))
+    await user.click(screen.getByLabelText('SELL'))
+    await user.selectOptions(screen.getByLabelText('Card Type'), 'One Piece Card')
+    await user.selectOptions(screen.getByLabelText('Currency'), 'USD')
+    await user.type(screen.getByLabelText('Price'), '120')
+    await user.clear(screen.getByLabelText('Transaction date'))
+    await user.type(screen.getByLabelText('Transaction date'), '2026-08-17')
+    await user.click(screen.getByRole('button', { name: 'SAVE' }))
+
+    await waitFor(() => {
+      expect(apiClient.createTransaction).toHaveBeenCalledWith({
+        action: 'SELL',
+        cardType: 'One Piece Card',
+        customCardType: null,
+        price: '120',
+        currency: 'USD',
+        transactionDate: '2026-08-17',
+      })
+    })
+
+    expect(screen.getByRole('button', { name: 'Sell (2)' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'USD' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Transaction saved.')).toBeInTheDocument()
+  })
+
+  it('fills the form from edit, updates the row, and only deletes after confirmation', async () => {
+    const user = userEvent.setup()
+    const apiClient = createApiClientDouble({
+      listTransactions: vi
+        .fn()
+        .mockImplementation(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? buyTransactions : sellTransactions,
+        ),
+    })
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+
+    await user.click(screen.getByRole('button', { name: 'Sell (1)' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Pokemon card' }))
+    expect(screen.getByRole('button', { name: 'UPDATE' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Card Type')).toHaveDisplayValue('Pokemon card')
+
+    await user.clear(screen.getByLabelText('Price'))
+    await user.type(screen.getByLabelText('Price'), '125')
+    await user.click(screen.getByRole('button', { name: 'UPDATE' }))
+
+    await waitFor(() => {
+      expect(apiClient.updateTransaction).toHaveBeenCalledWith('sell-1', {
+        action: 'SELL',
+        cardType: 'Pokemon card',
+        customCardType: null,
+        price: '125',
+        currency: 'USD',
+        transactionDate: '2026-08-16',
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Delete Pokemon card' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(apiClient.deleteTransaction).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Delete Pokemon card' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    await waitFor(() => {
+      expect(apiClient.deleteTransaction).toHaveBeenCalledWith('sell-1')
+    })
+  })
+
+  it('shows request failures through aria-live feedback and hides upgrade for non-anonymous users', async () => {
+    const user = userEvent.setup()
+    const apiClient = createApiClientDouble({
+      createTransaction: vi.fn().mockRejectedValue(new Error('Network unavailable')),
+    })
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(authenticatedSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+    expect(screen.queryByRole('button', { name: 'Upgrade account' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Price'), '2500')
+    await user.click(screen.getByRole('button', { name: 'SAVE' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Network unavailable')
+    })
+  })
+})
+
+function createApiClientDouble(overrides: Partial<ApiClient> = {}): ApiClient {
+  return {
+    listTransactions: vi
+      .fn()
+      .mockImplementation(async (action?: 'BUY' | 'SELL') =>
+        action === 'BUY' ? buyTransactions : sellTransactions,
+      ),
+    createTransaction: vi.fn().mockResolvedValue(sellTransactions[0]),
+    updateTransaction: vi.fn().mockResolvedValue(sellTransactions[0]),
+    deleteTransaction: vi.fn().mockResolvedValue(undefined),
+    getExchangeRate: vi.fn().mockResolvedValue(exchangeRate),
+    ...overrides,
+  }
+}
+
+function createAuthClientDouble() {
+  return {
+    getSession: vi.fn().mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'verified-token',
+          user: {
+            id: 'user-1',
+            is_anonymous: false,
+          },
+        },
+      },
+      error: null,
+    }),
+    updateUser: vi.fn().mockResolvedValue({ error: null }),
+  }
+}
