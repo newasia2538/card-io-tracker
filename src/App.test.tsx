@@ -438,7 +438,7 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Card Ledger' })
 
     await user.click(screen.getByRole('button', { name: 'USD' }))
-    expect(screen.getByText('Source: Frankfurter · 2026-08-17')).toBeInTheDocument()
+    expect(screen.queryByText('Source: Frankfurter · 2026-08-17')).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Price'), '2500')
     await user.click(screen.getByRole('button', { name: 'SAVE' }))

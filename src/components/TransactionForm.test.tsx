@@ -47,7 +47,7 @@ describe('TransactionForm', () => {
     expect(screen.queryByLabelText('Custom card type')).not.toBeInTheDocument()
   })
 
-  it('shows the live USD preview with provider date and stale attribution', async () => {
+  it('shows the live USD preview without provider attribution', async () => {
     const user = userEvent.setup()
     let requestCount = 0
     const getExchangeRate = vi.fn<() => Promise<ExchangeRate>>().mockImplementation(async () => {
@@ -72,7 +72,7 @@ describe('TransactionForm', () => {
     expect(screen.getByText('1 USD = ฿35.50 THB')).toBeInTheDocument()
     expect(screen.getByText('≈ ฿3550.00 THB')).toBeInTheDocument()
     expect(screen.getByText('Provider date: 2026-08-17')).toBeInTheDocument()
-    expect(screen.getByText('Source: Frankfurter')).toBeInTheDocument()
+    expect(screen.queryByText('Source: Frankfurter')).not.toBeInTheDocument()
 
     await user.clear(screen.getByLabelText('Price'))
     await user.type(screen.getByLabelText('Price'), '200')

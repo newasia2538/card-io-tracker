@@ -37,7 +37,7 @@ describe('Summary', () => {
     expect(screen.getByText('P/L')).toBeInTheDocument()
     expect(screen.getByText('Profit')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'THB' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText('Source: Frankfurter · 2026-08-17')).toBeInTheDocument()
+    expect(screen.queryByText('Source: Frankfurter · 2026-08-17')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'USD' }))
     expect(onDisplayCurrencyChange).toHaveBeenCalledWith('USD')

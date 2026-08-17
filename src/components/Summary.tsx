@@ -74,7 +74,7 @@ export function Summary({
 
       {exchangeRate ? (
         <p className="summary-meta">
-          Source: Frankfurter · {exchangeRate.providerDate}
+          Rate date: {exchangeRate.providerDate}
           {exchangeRate.stale ? ' · Cached rate' : ''}
         </p>
       ) : displayCurrency === 'USD' ? (

@@ -233,7 +233,6 @@ export function TransactionForm({
                 <p>1 USD = ฿{exchangeRate.rate} THB</p>
                 {pricePreview ? <p>≈ ฿{pricePreview} THB</p> : null}
                 <p>Provider date: {exchangeRate.providerDate}</p>
-                <p>Source: Frankfurter</p>
                 {exchangeRate.stale ? <p>Cached rate</p> : null}
               </>
             ) : null}
