@@ -81,6 +81,15 @@ export function TransactionForm({
         }
 
         setExchangeRate(nextRate)
+        setErrors((currentErrors) => {
+          if (!currentErrors.exchangeRate) {
+            return currentErrors
+          }
+
+          const nextErrors = { ...currentErrors }
+          delete nextErrors.exchangeRate
+          return nextErrors
+        })
       })
       .catch((error: unknown) => {
         if (isCancelled) {

@@ -126,6 +126,42 @@ describe('TransactionForm', () => {
     expect(screen.getByText('A USD to THB rate is required before saving.')).toBeInTheDocument()
   })
 
+  it('clears a stale rate validation error when the USD rate finishes loading', async () => {
+    const user = userEvent.setup()
+    const pendingRate = createDeferred<ExchangeRate>()
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+
+    renderForm({
+      getExchangeRate: () => pendingRate.promise,
+      onSubmit,
+    })
+
+    await user.selectOptions(screen.getByLabelText('Currency'), 'USD')
+    await user.type(screen.getByLabelText('Price'), '100')
+    await user.click(screen.getByRole('button', { name: 'SAVE' }))
+
+    expect(screen.getByText('A USD to THB rate is required before saving.')).toBeInTheDocument()
+
+    pendingRate.resolve(freshRate)
+
+    await waitFor(() => {
+      expect(screen.getByText('1 USD = ฿35.50 THB')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('A USD to THB rate is required before saving.')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'SAVE' }))
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        action: 'BUY',
+        cardType: 'Sport card',
+        customCardType: null,
+        price: '100',
+        currency: 'USD',
+        transactionDate: getToday(),
+      })
+    })
+  })
+
   it('validates required fields before saving', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
