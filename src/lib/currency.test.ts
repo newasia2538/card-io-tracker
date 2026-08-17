@@ -84,6 +84,51 @@ describe('summarizeTransactions', () => {
       profitLossStatus: 'profit',
     })
   })
+
+  it('derives displayed USD P/L from the displayed rounded USD totals', () => {
+    const roundedTotalsTransactions: TransactionRecord[] = [
+      {
+        id: 'buy-rounding',
+        userId: 'user-1',
+        action: 'BUY',
+        cardType: 'Sport card',
+        customCardType: null,
+        price: '1.00',
+        currency: 'THB',
+        priceThb: '1.00',
+        exchangeRateToThb: '1.00',
+        exchangeRateDate: '2026-08-17',
+        transactionDate: '2026-08-17',
+        createdAt: '2026-08-17T00:00:00Z',
+        updatedAt: '2026-08-17T00:00:00Z',
+      },
+      {
+        id: 'sell-rounding',
+        userId: 'user-1',
+        action: 'SELL',
+        cardType: 'Sport card',
+        customCardType: null,
+        price: '2.00',
+        currency: 'THB',
+        priceThb: '2.00',
+        exchangeRateToThb: '1.00',
+        exchangeRateDate: '2026-08-17',
+        transactionDate: '2026-08-17',
+        createdAt: '2026-08-17T00:00:00Z',
+        updatedAt: '2026-08-17T00:00:00Z',
+      },
+    ]
+
+    expect(summarizeTransactions(roundedTotalsTransactions, '3.00')).toEqual({
+      totalBuyTHB: '1.00',
+      totalSellTHB: '2.00',
+      profitLossTHB: '1.00',
+      totalBuyUSD: '0.33',
+      totalSellUSD: '0.67',
+      profitLossUSD: '0.34',
+      profitLossStatus: 'profit',
+    })
+  })
 })
 
 describe('getProfitLossStatus', () => {

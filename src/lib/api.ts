@@ -185,11 +185,18 @@ async function toApiError(response: Response): Promise<ApiError> {
   const contentType = response.headers.get('Content-Type') ?? ''
 
   if (contentType.includes('application/json')) {
-    const payload = (await response.json()) as ApiErrorPayload
+    let payload: ApiErrorPayload | null = null
+
+    try {
+      payload = (await response.json()) as ApiErrorPayload
+    } catch {
+      payload = null
+    }
+
     return new ApiError({
       status: response.status,
-      code: payload.code ?? 'unknown_error',
-      message: payload.error ?? fallbackMessage,
+      code: payload?.code ?? 'unknown_error',
+      message: payload?.error ?? fallbackMessage,
     })
   }
 

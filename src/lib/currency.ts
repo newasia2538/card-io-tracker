@@ -70,7 +70,7 @@ export function summarizeTransactions(
 
   const totalBuyUSD = fromThb(totalBuyTHBString, 'USD', usdToThbRate)
   const totalSellUSD = fromThb(totalSellTHBString, 'USD', usdToThbRate)
-  const profitLossUSD = fromThb(profitLossTHBString, 'USD', usdToThbRate)
+  const profitLossUSD = formatDecimal(new Decimal(totalSellUSD).sub(new Decimal(totalBuyUSD)))
 
   return {
     totalBuyTHB: totalBuyTHBString,

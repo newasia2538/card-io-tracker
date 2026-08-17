@@ -265,4 +265,33 @@ describe('createApiClient', () => {
       }),
     )
   })
+
+  it('normalizes malformed or empty JSON error responses into ApiError fallbacks', async () => {
+    const createErrorClient = (body: string) =>
+      createApiClient({
+        fetch: vi.fn().mockResolvedValue(
+          new Response(body, {
+            status: 502,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+        getAuthSession: vi.fn().mockResolvedValue(session),
+      })
+
+    await expect(createErrorClient('{').getExchangeRate()).rejects.toEqual(
+      new ApiError({
+        status: 502,
+        code: 'unknown_error',
+        message: 'Request failed with status 502',
+      }),
+    )
+
+    await expect(createErrorClient('').getExchangeRate()).rejects.toEqual(
+      new ApiError({
+        status: 502,
+        code: 'unknown_error',
+        message: 'Request failed with status 502',
+      }),
+    )
+  })
 })

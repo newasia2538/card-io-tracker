@@ -27,6 +27,10 @@ export interface SupabaseAuthClientLike {
 }
 
 let cachedSupabaseClient: SupabaseClient | null = null
+const anonymousSessionRequests = new WeakMap<
+  SupabaseAuthClientLike,
+  Promise<AuthSession>
+>()
 
 export function getSupabaseClient(): SupabaseClient {
   if (cachedSupabaseClient) {
@@ -64,17 +68,31 @@ export async function ensureAuthSession(
     return existingSession
   }
 
-  const anonymousResult = await client.auth.signInAnonymously()
-  if (anonymousResult.error) {
-    throw anonymousResult.error
+  const inFlightRequest = anonymousSessionRequests.get(client)
+  if (inFlightRequest) {
+    return inFlightRequest
   }
 
-  const anonymousSession = toAuthSession(anonymousResult.data.session)
-  if (!anonymousSession) {
-    throw new Error('Supabase anonymous sign-in did not return a session')
-  }
+  const anonymousSessionRequest = client.auth
+    .signInAnonymously()
+    .then((anonymousResult) => {
+      if (anonymousResult.error) {
+        throw anonymousResult.error
+      }
 
-  return anonymousSession
+      const anonymousSession = toAuthSession(anonymousResult.data.session)
+      if (!anonymousSession) {
+        throw new Error('Supabase anonymous sign-in did not return a session')
+      }
+
+      return anonymousSession
+    })
+    .finally(() => {
+      anonymousSessionRequests.delete(client)
+    })
+
+  anonymousSessionRequests.set(client, anonymousSessionRequest)
+  return anonymousSessionRequest
 }
 
 function toAuthSession(session: SessionLike | null): AuthSession | null {
