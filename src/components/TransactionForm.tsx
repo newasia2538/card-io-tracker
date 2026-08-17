@@ -219,8 +219,8 @@ export function TransactionForm({
             onChange={(event) => updateDraft('currency', event.target.value as CurrencyCode)}
             value={draft.currency}
           >
-            <option value="THB">THB</option>
-            <option value="USD">USD</option>
+            <option value="THB">🇹🇭 THB ฿</option>
+            <option value="USD">🇺🇸 USD $</option>
           </select>
         </label>
 

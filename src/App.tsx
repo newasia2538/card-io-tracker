@@ -39,6 +39,7 @@ export function App({
   const [statusMessage, setStatusMessage] = useState('Loading your ledger…')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
 
   const allTransactions = useMemo(
     () => [...buyTransactions, ...sellTransactions],
@@ -65,10 +66,14 @@ export function App({
         }
 
         setSession(nextSession)
-        await refreshTransactions(apiClient, setBuyTransactions, setSellTransactions, setExchangeRate)
-        if (!isCancelled) {
-          setStatusMessage('Ledger ready.')
+
+        const ledgerData = await refreshTransactions(apiClient)
+        if (isCancelled) {
+          return
         }
+
+        applyTransactionState(ledgerData, setBuyTransactions, setSellTransactions, setExchangeRate)
+        setStatusMessage('Ledger ready.')
       } catch (error) {
         if (!isCancelled) {
           setErrorMessage(toErrorMessage(error))
@@ -86,7 +91,7 @@ export function App({
     return () => {
       isCancelled = true
     }
-  }, [apiClient, authLoader])
+  }, [apiClient, authLoader, bootstrapAttempt])
 
   async function handleSubmit(draft: TransactionDraft) {
     setIsSubmitting(true)
@@ -95,11 +100,21 @@ export function App({
     try {
       if (editingTransaction) {
         await apiClient.updateTransaction(editingTransaction.id, draft)
-        await refreshTransactions(apiClient, setBuyTransactions, setSellTransactions, setExchangeRate)
+        applyTransactionState(
+          await refreshTransactions(apiClient),
+          setBuyTransactions,
+          setSellTransactions,
+          setExchangeRate,
+        )
         setStatusMessage('Transaction updated.')
       } else {
         await apiClient.createTransaction(draft)
-        await refreshTransactions(apiClient, setBuyTransactions, setSellTransactions, setExchangeRate)
+        applyTransactionState(
+          await refreshTransactions(apiClient),
+          setBuyTransactions,
+          setSellTransactions,
+          setExchangeRate,
+        )
         setStatusMessage('Transaction saved.')
       }
 
@@ -114,10 +129,20 @@ export function App({
 
   async function handleDelete(id: string) {
     setErrorMessage(null)
+    const isDeletingEditingTransaction = editingTransaction?.id === id
 
     try {
       await apiClient.deleteTransaction(id)
-      await refreshTransactions(apiClient, setBuyTransactions, setSellTransactions, setExchangeRate)
+      applyTransactionState(
+        await refreshTransactions(apiClient),
+        setBuyTransactions,
+        setSellTransactions,
+        setExchangeRate,
+      )
+      if (isDeletingEditingTransaction) {
+        setEditingTransaction(null)
+        setResetSignal((value) => value + 1)
+      }
       setStatusMessage('Transaction deleted.')
     } catch (error) {
       setErrorMessage(toErrorMessage(error))
@@ -130,6 +155,13 @@ export function App({
   }
 
   function handleUpgraded(nextSession: AuthSession) {
+    if (session?.isAnonymous && nextSession.userId !== session.userId) {
+      setErrorMessage('The upgraded session did not match the current anonymous account. Please try again with the same account.')
+      setStatusMessage('Unable to upgrade your account.')
+      return
+    }
+
+    setErrorMessage(null)
     setSession(nextSession)
     setIsUpgradeOpen(false)
     setStatusMessage('Account upgraded.')
@@ -151,6 +183,11 @@ export function App({
             {isLoading ? 'Loading your ledger…' : statusMessage}
           </p>
           {errorMessage ? <p role="alert">{errorMessage}</p> : null}
+          {!session && errorMessage && !isLoading ? (
+            <button onClick={() => setBootstrapAttempt((value) => value + 1)} type="button">
+              Retry loading ledger
+            </button>
+          ) : null}
           {session?.isAnonymous ? (
             <button onClick={() => setIsUpgradeOpen((open) => !open)} type="button">
               Upgrade account
@@ -202,12 +239,15 @@ export function App({
   )
 }
 
+type RefreshedTransactions = {
+  buyTransactions: TransactionRecord[]
+  sellTransactions: TransactionRecord[]
+  exchangeRate: ExchangeRate | null
+}
+
 async function refreshTransactions(
   client: ApiClient,
-  setBuyTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>,
-  setSellTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>,
-  setExchangeRate: React.Dispatch<React.SetStateAction<ExchangeRate | null>>,
-) {
+): Promise<RefreshedTransactions> {
   const [buy, sell, rateResult] = await Promise.all([
     client.listTransactions('BUY'),
     client.listTransactions('SELL'),
@@ -217,10 +257,23 @@ async function refreshTransactions(
       .catch(() => ({ ok: false as const })),
   ])
 
-  setBuyTransactions(buy)
-  setSellTransactions(sell)
-  if (rateResult.ok) {
-    setExchangeRate(rateResult.rate)
+  return {
+    buyTransactions: buy,
+    sellTransactions: sell,
+    exchangeRate: rateResult.ok ? rateResult.rate : null,
+  }
+}
+
+function applyTransactionState(
+  ledgerData: RefreshedTransactions,
+  setBuyTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>,
+  setSellTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>,
+  setExchangeRate: React.Dispatch<React.SetStateAction<ExchangeRate | null>>,
+) {
+  setBuyTransactions(ledgerData.buyTransactions)
+  setSellTransactions(ledgerData.sellTransactions)
+  if (ledgerData.exchangeRate) {
+    setExchangeRate(ledgerData.exchangeRate)
   }
 }
 

@@ -218,6 +218,276 @@ describe('App', () => {
     })
   })
 
+  it('clears edit mode after deleting the transaction currently being edited', async () => {
+    const user = userEvent.setup()
+    const apiClient = createApiClientDouble({
+      listTransactions: vi
+        .fn()
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? buyTransactions : sellTransactions,
+        )
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? buyTransactions : sellTransactions,
+        )
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') => (action === 'BUY' ? buyTransactions : []))
+        .mockImplementationOnce(async (action?: 'BUY' | 'SELL') => (action === 'BUY' ? buyTransactions : [])),
+    })
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+
+    await user.click(screen.getByRole('button', { name: 'Sell (1)' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Pokemon card' }))
+    expect(screen.getByRole('button', { name: 'UPDATE' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Delete Pokemon card' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm delete' }))
+
+    await waitFor(() => {
+      expect(apiClient.deleteTransaction).toHaveBeenCalledWith('sell-1')
+    })
+
+    expect(screen.getByRole('button', { name: 'SAVE' })).toBeInTheDocument()
+    expect(screen.getByLabelText('BUY')).toBeChecked()
+    expect(screen.getByLabelText('Price')).toHaveValue('')
+    expect(screen.getByText('No SELL transactions yet.')).toBeInTheDocument()
+  })
+
+  it('shows a retry button for initial bootstrap failures and retries loading from the button', async () => {
+    const user = userEvent.setup()
+    const authLoader = vi
+      .fn<() => Promise<AuthSession>>()
+      .mockRejectedValueOnce(new Error('Auth temporarily unavailable'))
+      .mockResolvedValueOnce(anonymousSession)
+    const apiClient = createApiClientDouble()
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={authLoader}
+        locale="th-TH"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Auth temporarily unavailable')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Retry loading ledger' }))
+
+    await waitFor(() => {
+      expect(authLoader).toHaveBeenCalledTimes(2)
+    })
+
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('BUY')
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('SELL')
+    expect(screen.getByText('Ledger ready.')).toBeInTheDocument()
+  })
+
+  it('ignores stale bootstrap refresh results after a rerender starts a new bootstrap', async () => {
+    const firstBuy = createDeferred<TransactionRecord[]>()
+    const firstSell = createDeferred<TransactionRecord[]>()
+    const firstRate = createDeferred<ExchangeRate>()
+    const secondSellTransactions: TransactionRecord[] = [
+      {
+        ...sellTransactions[0],
+        id: 'sell-2',
+        cardType: 'One Piece Card',
+        price: '120.00',
+        priceThb: '4260.00',
+      },
+      sellTransactions[0],
+    ]
+
+    const firstClient = createApiClientDouble({
+      listTransactions: vi.fn().mockImplementation((action?: 'BUY' | 'SELL') => {
+        return action === 'BUY' ? firstBuy.promise : firstSell.promise
+      }),
+      getExchangeRate: vi.fn().mockImplementation(() => firstRate.promise),
+    })
+    const secondClient = createApiClientDouble({
+      listTransactions: vi
+        .fn()
+        .mockImplementation(async (action?: 'BUY' | 'SELL') =>
+          action === 'BUY' ? [] : secondSellTransactions,
+        ),
+      getExchangeRate: vi.fn().mockResolvedValue({
+        ...exchangeRate,
+        rate: '36.00',
+      }),
+    })
+
+    const { rerender } = render(
+      <App
+        apiClient={firstClient}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(firstClient.listTransactions).toHaveBeenCalledWith('BUY')
+      expect(firstClient.listTransactions).toHaveBeenCalledWith('SELL')
+    })
+
+    rerender(
+      <App
+        apiClient={secondClient}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('button', { name: 'Sell (2)' })
+    expect(screen.getByRole('button', { name: 'Buy (0)' })).toBeInTheDocument()
+
+    firstBuy.resolve(buyTransactions)
+    firstSell.resolve(sellTransactions)
+    firstRate.resolve(exchangeRate)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sell (2)' })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Buy (0)' })).toBeInTheDocument()
+  })
+
+  it('closes the upgrade flow only when the verified session keeps the same user id', async () => {
+    const user = userEvent.setup()
+    const updateUser = vi
+      .fn()
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: null })
+    const getSession = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: 'verified-token',
+            user: {
+              id: anonymousSession.userId,
+              is_anonymous: false,
+            },
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: 'verified-token',
+            user: {
+              id: anonymousSession.userId,
+              is_anonymous: false,
+            },
+          },
+        },
+        error: null,
+      })
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={{
+          getSession,
+          updateUser,
+        }}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+
+    await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
+    await user.type(screen.getByLabelText('Email'), 'collector@example.com')
+    await user.click(screen.getByRole('button', { name: 'Send verification email' }))
+    await user.click(screen.getByRole('button', { name: "I've verified my email" }))
+    await user.type(screen.getByLabelText('Password'), 'new-password-123')
+    await user.click(screen.getByRole('button', { name: 'Set password' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Account upgraded.')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByRole('region', { name: 'Upgrade account' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Upgrade account' })).not.toBeInTheDocument()
+  })
+
+  it('shows an error and keeps the anonymous session when the upgraded session user id changes', async () => {
+    const user = userEvent.setup()
+    const updateUser = vi
+      .fn()
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: null })
+    const getSession = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: 'verified-token',
+            user: {
+              id: anonymousSession.userId,
+              is_anonymous: false,
+            },
+          },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          session: {
+            access_token: 'verified-token',
+            user: {
+              id: 'user-2',
+              is_anonymous: false,
+            },
+          },
+        },
+        error: null,
+      })
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={{
+          getSession,
+          updateUser,
+        }}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="th-TH"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Card Ledger' })
+
+    await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
+    await user.type(screen.getByLabelText('Email'), 'collector@example.com')
+    await user.click(screen.getByRole('button', { name: 'Send verification email' }))
+    await user.click(screen.getByRole('button', { name: "I've verified my email" }))
+    await user.type(screen.getByLabelText('Password'), 'new-password-123')
+    await user.click(screen.getByRole('button', { name: 'Set password' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'The upgraded session did not match the current anonymous account. Please try again with the same account.',
+      )
+    })
+
+    expect(screen.getByRole('heading', { name: 'Upgrade account' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Upgrade account' })).toBeInTheDocument()
+  })
+
   it('shows request failures through aria-live feedback and hides upgrade for non-anonymous users', async () => {
     const user = userEvent.setup()
     const apiClient = createApiClientDouble({
@@ -264,16 +534,25 @@ function createAuthClientDouble() {
   return {
     getSession: vi.fn().mockResolvedValue({
       data: {
-        session: {
-          access_token: 'verified-token',
-          user: {
-            id: 'user-1',
-            is_anonymous: false,
-          },
-        },
+        session: null,
       },
       error: null,
     }),
     updateUser: vi.fn().mockResolvedValue({ error: null }),
+  }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+
+  return {
+    promise,
+    reject,
+    resolve,
   }
 }

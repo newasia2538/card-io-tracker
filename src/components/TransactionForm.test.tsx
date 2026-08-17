@@ -20,7 +20,7 @@ describe('TransactionForm', () => {
     expect(screen.getByLabelText('BUY')).toBeChecked()
     expect(screen.getByLabelText('SELL')).not.toBeChecked()
     expect(screen.getByLabelText('Card Type')).toHaveDisplayValue('Sport card')
-    expect(screen.getByLabelText('Currency')).toHaveDisplayValue('THB')
+    expect(screen.getByLabelText('Currency')).toHaveDisplayValue('🇹🇭 THB ฿')
     expect(screen.getByLabelText('Transaction date')).toHaveValue(getToday())
 
     const cardTypeSelect = screen.getByLabelText('Card Type')
@@ -30,6 +30,8 @@ describe('TransactionForm', () => {
     expect(screen.getByRole('option', { name: 'JH Card' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Others' })).toBeInTheDocument()
     expect(cardTypeSelect).not.toHaveDisplayValue('Others')
+    expect(screen.getByRole('option', { name: '🇹🇭 THB ฿' })).toHaveValue('THB')
+    expect(screen.getByRole('option', { name: '🇺🇸 USD $' })).toHaveValue('USD')
   })
 
   it('shows a custom card type input only when Others is selected', async () => {
@@ -151,7 +153,7 @@ describe('TransactionForm', () => {
     expect(screen.getByLabelText('SELL')).toBeChecked()
     expect(screen.getByLabelText('Card Type')).toHaveDisplayValue('Others')
     expect(screen.getByLabelText('Custom card type')).toHaveValue('Promo')
-    expect(screen.getByLabelText('Currency')).toHaveDisplayValue('USD')
+    expect(screen.getByLabelText('Currency')).toHaveDisplayValue('🇺🇸 USD $')
     expect(screen.getByLabelText('Transaction date')).toHaveValue('2026-08-16')
 
     await user.clear(screen.getByLabelText('Price'))
