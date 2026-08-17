@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"cardledger/api/internal/auth"
+	"cardledger/api/internal/rates"
 )
 
 type stubAuthenticator struct {
@@ -182,6 +185,42 @@ func TestHandlerCreateReturns502WhenUSDRatePayloadIsInvalid(t *testing.T) {
 	service := &stubService{
 		createErr: &Error{Kind: ErrorKindUpstream, Message: "usd/thb rate response invalid"},
 	}
+	handler := NewHandler(authenticator, service)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/transactions", bytes.NewBufferString(`{"action":"BUY","card_type":"Sport card","price":"100.00","currency":"USD","transaction_date":"2026-08-17"}`))
+	req.Header.Set("Authorization", "Bearer jwt-token")
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusBadGateway)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["code"] != "upstream_unavailable" {
+		t.Fatalf("body[code] = %q, want %q", body["code"], "upstream_unavailable")
+	}
+}
+
+func TestHandlerCreateReturns502WhenFrankfurterPayloadIsMalformed(t *testing.T) {
+	t.Parallel()
+
+	authenticator := &stubAuthenticator{user: auth.User{ID: "user-123"}}
+	provider := rates.NewFrankfurterProvider(&http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"date":"2026-08-17"`)),
+			}, nil
+		}),
+	}, rates.WithBaseURL("https://rates.example"))
+	service := NewService(&captureStore{}, provider)
 	handler := NewHandler(authenticator, service)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/transactions", bytes.NewBufferString(`{"action":"BUY","card_type":"Sport card","price":"100.00","currency":"USD","transaction_date":"2026-08-17"}`))

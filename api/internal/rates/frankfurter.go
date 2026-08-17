@@ -161,18 +161,18 @@ func (p *FrankfurterProvider) fetch(ctx context.Context) (Rate, error) {
 	decoder := json.NewDecoder(res.Body)
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
-		return Rate{}, fmt.Errorf("decode Frankfurter response: %w", err)
+		return Rate{}, WrapMalformedResponse(fmt.Errorf("decode Frankfurter response: %w", err))
 	}
 
 	providerDate, err := time.Parse("2006-01-02", payload.Date)
 	if err != nil {
-		return Rate{}, errors.New("provider date must be YYYY-MM-DD")
+		return Rate{}, WrapMalformedResponse(errors.New("provider date must be YYYY-MM-DD"))
 	}
 	if payload.Base != "USD" || payload.Quote != "THB" {
-		return Rate{}, fmt.Errorf("unexpected currency pair %s/%s", payload.Base, payload.Quote)
+		return Rate{}, WrapMalformedResponse(fmt.Errorf("unexpected currency pair %s/%s", payload.Base, payload.Quote))
 	}
 	if err := validatePositiveDecimal(payload.Rate.String()); err != nil {
-		return Rate{}, fmt.Errorf("invalid provider rate: %w", err)
+		return Rate{}, WrapMalformedResponse(fmt.Errorf("invalid provider rate: %w", err))
 	}
 
 	return Rate{

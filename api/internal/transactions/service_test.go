@@ -3,6 +3,9 @@ package transactions
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +59,12 @@ func (s *captureStore) Delete(_ context.Context, token string, id string) error 
 type stubRates struct {
 	rate rates.Rate
 	err  error
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func (s stubRates) USDToTHB(context.Context) (rates.Rate, error) {
@@ -174,6 +183,58 @@ func TestServiceCreateMapsMalformedUSDRateToUpstream(t *testing.T) {
 	}
 	if serviceErr.Kind != ErrorKindUpstream {
 		t.Fatalf("serviceErr.Kind = %q, want %q", serviceErr.Kind, ErrorKindUpstream)
+	}
+}
+
+func TestServiceCreateMapsMalformedFrankfurterPayloadToUpstream(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "bad json", body: `{"date":"2026-08-17"`},
+		{name: "bad date", body: `{"date":"17-08-2026","base":"USD","quote":"THB","rate":35.50}`},
+		{name: "bad base", body: `{"date":"2026-08-17","base":"EUR","quote":"THB","rate":35.50}`},
+		{name: "bad quote", body: `{"date":"2026-08-17","base":"USD","quote":"JPY","rate":35.50}`},
+		{name: "bad rate", body: `{"date":"2026-08-17","base":"USD","quote":"THB","rate":"nope"}`},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider := rates.NewFrankfurterProvider(&http.Client{
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body:       io.NopCloser(strings.NewReader(tt.body)),
+					}, nil
+				}),
+			}, rates.WithBaseURL("https://rates.example"))
+			service := NewService(&captureStore{}, provider)
+
+			_, err := service.Create(context.Background(), "jwt-token", "user-123", TransactionInput{
+				Action:          "BUY",
+				CardType:        "Sport card",
+				Price:           "100.00",
+				Currency:        "USD",
+				TransactionDate: "2026-08-17",
+			})
+			if err == nil {
+				t.Fatal("Create() error = nil, want error")
+			}
+
+			var serviceErr *Error
+			if !errors.As(err, &serviceErr) {
+				t.Fatalf("Create() error = %T, want *Error", err)
+			}
+			if serviceErr.Kind != ErrorKindUpstream {
+				t.Fatalf("serviceErr.Kind = %q, want %q", serviceErr.Kind, ErrorKindUpstream)
+			}
+		})
 	}
 }
 
