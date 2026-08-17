@@ -38,6 +38,7 @@ export function App({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState('Loading your ledger…')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [bootstrapErrorMessage, setBootstrapErrorMessage] = useState<string | null>(null)
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
 
@@ -57,6 +58,7 @@ export function App({
     async function bootstrap() {
       setIsLoading(true)
       setErrorMessage(null)
+      setBootstrapErrorMessage(null)
       setStatusMessage('Loading your ledger…')
 
       try {
@@ -73,10 +75,11 @@ export function App({
         }
 
         applyTransactionState(ledgerData, setBuyTransactions, setSellTransactions, setExchangeRate)
+        setBootstrapErrorMessage(null)
         setStatusMessage('Ledger ready.')
       } catch (error) {
         if (!isCancelled) {
-          setErrorMessage(toErrorMessage(error))
+          setBootstrapErrorMessage(toErrorMessage(error))
           setStatusMessage('Unable to load your ledger.')
         }
       } finally {
@@ -182,8 +185,10 @@ export function App({
           <p aria-live="polite" role="status">
             {isLoading ? 'Loading your ledger…' : statusMessage}
           </p>
-          {errorMessage ? <p role="alert">{errorMessage}</p> : null}
-          {!session && errorMessage && !isLoading ? (
+          {bootstrapErrorMessage || errorMessage ? (
+            <p role="alert">{bootstrapErrorMessage ?? errorMessage}</p>
+          ) : null}
+          {bootstrapErrorMessage && !isLoading ? (
             <button onClick={() => setBootstrapAttempt((value) => value + 1)} type="button">
               Retry loading ledger
             </button>

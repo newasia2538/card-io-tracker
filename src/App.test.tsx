@@ -293,6 +293,44 @@ describe('App', () => {
     expect(screen.getByText('Ledger ready.')).toBeInTheDocument()
   })
 
+  it('shows a retry button when bootstrap data loading fails after auth succeeds and retries successfully', async () => {
+    const user = userEvent.setup()
+    const authLoader = vi.fn().mockResolvedValue(authenticatedSession)
+    const listTransactions = vi.fn(async (action?: 'BUY' | 'SELL') => {
+      if (action === 'BUY' && listTransactions.mock.calls.length === 1) {
+        throw new Error('Transactions temporarily unavailable')
+      }
+
+      return action === 'BUY' ? buyTransactions : sellTransactions
+    })
+    const apiClient = createApiClientDouble({
+      listTransactions,
+    })
+
+    render(
+      <App
+        apiClient={apiClient}
+        authClient={createAuthClientDouble()}
+        authLoader={authLoader}
+        locale="th-TH"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Transactions temporarily unavailable')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Retry loading ledger' }))
+
+    await waitFor(() => {
+      expect(listTransactions).toHaveBeenCalledWith('BUY')
+      expect(listTransactions).toHaveBeenCalledWith('SELL')
+    })
+
+    expect(screen.getByText('Ledger ready.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry loading ledger' })).not.toBeInTheDocument()
+  })
+
   it('ignores stale bootstrap refresh results after a rerender starts a new bootstrap', async () => {
     const firstBuy = createDeferred<TransactionRecord[]>()
     const firstSell = createDeferred<TransactionRecord[]>()
