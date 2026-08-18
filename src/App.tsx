@@ -3,7 +3,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { ensureAuthSession, getSupabaseClient } from './lib/auth'
 import { apiClient as defaultApiClient, type ApiClient } from './lib/api'
 import { getDefaultCurrency, summarizeTransactions } from './lib/currency'
-import type { AuthSession, CurrencyCode, ExchangeRate, TransactionAction, TransactionDraft, TransactionRecord } from './types'
+import { getTranslations, type Translations } from './lib/i18n'
+import type {
+  AuthSession,
+  CurrencyCode,
+  ExchangeRate,
+  Language,
+  Theme,
+  TransactionDraft,
+  TransactionFilter,
+  TransactionRecord,
+} from './types'
 import {
   AccountUpgradeDialog,
   type AccountUpgradeAuthClient,
@@ -30,17 +40,25 @@ export function App({
   const [buyTransactions, setBuyTransactions] = useState<TransactionRecord[]>([])
   const [sellTransactions, setSellTransactions] = useState<TransactionRecord[]>([])
   const [exchangeRate, setExchangeRate] = useState<ExchangeRate | null>(null)
-  const [activeTab, setActiveTab] = useState<TransactionAction>('BUY')
+  const [activeTab, setActiveTab] = useState<TransactionFilter>('ALL')
   const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(defaultCurrency)
+  const [language, setLanguage] = useState<Language>('en')
+  const [theme, setTheme] = useState<Theme>(getDefaultTheme)
   const [editingTransaction, setEditingTransaction] = useState<TransactionRecord | null>(null)
   const [resetSignal, setResetSignal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [statusMessage, setStatusMessage] = useState('Loading your ledger…')
+  const [statusKey, setStatusKey] = useState<StatusKey>('loading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [bootstrapErrorMessage, setBootstrapErrorMessage] = useState<string | null>(null)
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
+  const translations = getTranslations(language)
+  const statusMessage = getStatusMessage(translations, statusKey)
+
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
 
   const allTransactions = useMemo(
     () => [...buyTransactions, ...sellTransactions],
@@ -59,7 +77,7 @@ export function App({
       setIsLoading(true)
       setErrorMessage(null)
       setBootstrapErrorMessage(null)
-      setStatusMessage('Loading your ledger…')
+      setStatusKey('loading')
 
       try {
         const nextSession = await authLoader()
@@ -76,11 +94,11 @@ export function App({
           setSellTransactions,
         })
         setBootstrapErrorMessage(null)
-        setStatusMessage('Ledger ready.')
+        setStatusKey('ready')
       } catch (error) {
         if (!isCancelled) {
           setBootstrapErrorMessage(toErrorMessage(error))
-          setStatusMessage('Unable to load your ledger.')
+          setStatusKey('unavailable')
         }
       } finally {
         if (!isCancelled) {
@@ -109,7 +127,7 @@ export function App({
           setExchangeRate,
           setSellTransactions,
         })
-        setStatusMessage('Transaction updated.')
+        setStatusKey('updated')
       } else {
         await apiClient.createTransaction(draft)
         await refreshAndApplyTransactions({
@@ -118,7 +136,7 @@ export function App({
           setExchangeRate,
           setSellTransactions,
         })
-        setStatusMessage('Transaction saved.')
+        setStatusKey('saved')
       }
 
       setEditingTransaction(null)
@@ -146,7 +164,7 @@ export function App({
         setEditingTransaction(null)
         setResetSignal((value) => value + 1)
       }
-      setStatusMessage('Transaction deleted.')
+      setStatusKey('deleted')
     } catch (error) {
       setErrorMessage(toErrorMessage(error))
     }
@@ -159,73 +177,111 @@ export function App({
 
   function handleUpgraded(nextSession: AuthSession) {
     if (session?.isAnonymous && nextSession.userId !== session.userId) {
-      setErrorMessage('The upgraded session did not match the current anonymous account. Please try again with the same account.')
-      setStatusMessage('Unable to upgrade your account.')
+      setErrorMessage(translations.sessionMismatch)
+      setStatusKey('upgradeUnavailable')
       return
     }
 
     setErrorMessage(null)
     setSession(nextSession)
     setIsUpgradeOpen(false)
-    setStatusMessage('Account upgraded.')
+    setStatusKey('upgraded')
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-language={language} data-theme={theme}>
       <section className="app-hero">
         <div>
-          <p className="eyebrow">Card Ledger</p>
-          <h1>Card Ledger</h1>
-          <p className="hero-copy">
-            Track BUY and SELL activity with canonical THB totals and original-currency history.
-          </p>
+          <p className="eyebrow">{translations.heroEyebrow}</p>
+          <h1>{translations.brandName}</h1>
+          <p className="hero-copy">{translations.brandDescription}</p>
         </div>
 
-        <div className="status-panel">
+        <div className="app-hero__side">
+          <div className="preference-switches">
+            <div className="preference-switch" aria-label={translations.themeSwitchLabel} role="group">
+              <button
+                aria-pressed={theme === 'day'}
+                onClick={() => setTheme('day')}
+                type="button"
+              >
+                {translations.day}
+              </button>
+              <button
+                aria-pressed={theme === 'night'}
+                onClick={() => setTheme('night')}
+                type="button"
+              >
+                {translations.night}
+              </button>
+            </div>
+            <div className="preference-switch" aria-label={translations.languageSwitchLabel} role="group">
+              <button
+                aria-pressed={language === 'en'}
+                onClick={() => setLanguage('en')}
+                type="button"
+              >
+                {translations.english}
+              </button>
+              <button
+                aria-pressed={language === 'th'}
+                onClick={() => setLanguage('th')}
+                type="button"
+              >
+                {translations.thai}
+              </button>
+            </div>
+          </div>
+
+          <div className="status-panel">
           <p aria-live="polite" role="status">
-            {isLoading ? 'Loading your ledger…' : statusMessage}
+            {isLoading ? translations.loadingLedger : statusMessage}
           </p>
           {bootstrapErrorMessage || errorMessage ? (
             <p role="alert">{bootstrapErrorMessage ?? errorMessage}</p>
           ) : null}
           {bootstrapErrorMessage && !isLoading ? (
             <button onClick={() => setBootstrapAttempt((value) => value + 1)} type="button">
-              Retry loading ledger
+              {translations.retryLoadingLedger}
             </button>
           ) : null}
           {session?.isAnonymous ? (
             <button onClick={() => setIsUpgradeOpen((open) => !open)} type="button">
-              Upgrade account
+              {translations.upgradeAccount}
             </button>
           ) : null}
+          </div>
         </div>
       </section>
 
       <section className="app-layout">
         <div className="app-column">
+          {session?.isAnonymous && isUpgradeOpen ? (
+            <AccountUpgradeDialog
+              authClient={authClient}
+              language={language}
+              onClose={() => setIsUpgradeOpen(false)}
+              onUpgraded={handleUpgraded}
+            />
+          ) : null}
+
           <TransactionForm
             defaultCurrency={defaultCurrency}
             editingTransaction={editingTransaction}
             getExchangeRate={apiClient.getExchangeRate}
             isSubmitting={isSubmitting}
+            language={language}
             onClearEdit={handleClearEdit}
             onSubmit={handleSubmit}
             resetSignal={resetSignal}
           />
-
-          {session?.isAnonymous && isUpgradeOpen ? (
-            <AccountUpgradeDialog
-              authClient={authClient}
-              onClose={() => setIsUpgradeOpen(false)}
-              onUpgraded={handleUpgraded}
-            />
-          ) : null}
         </div>
 
         <div className="app-column">
           <Summary
             displayCurrency={displayCurrency}
             exchangeRate={exchangeRate}
+            language={language}
             onDisplayCurrencyChange={setDisplayCurrency}
             totals={totals}
           />
@@ -233,6 +289,7 @@ export function App({
           <TransactionList
             activeTab={activeTab}
             buyTransactions={buyTransactions}
+            language={language}
             onDelete={handleDelete}
             onEdit={setEditingTransaction}
             onTabChange={setActiveTab}
@@ -242,6 +299,37 @@ export function App({
       </section>
     </main>
   )
+}
+
+type StatusKey =
+  | 'loading'
+  | 'ready'
+  | 'unavailable'
+  | 'saved'
+  | 'updated'
+  | 'deleted'
+  | 'upgraded'
+  | 'upgradeUnavailable'
+
+function getStatusMessage(translations: Translations, statusKey: StatusKey): string {
+  switch (statusKey) {
+    case 'loading':
+      return translations.loadingLedger
+    case 'ready':
+      return translations.ledgerReady
+    case 'unavailable':
+      return translations.ledgerUnavailable
+    case 'saved':
+      return translations.transactionSaved
+    case 'updated':
+      return translations.transactionUpdated
+    case 'deleted':
+      return translations.transactionDeleted
+    case 'upgraded':
+      return translations.accountUpgraded
+    case 'upgradeUnavailable':
+      return translations.unableToUpgrade
+  }
 }
 
 type RefreshedTransactions = {
@@ -278,6 +366,11 @@ function applyTransactionState(
   setBuyTransactions(ledgerData.buyTransactions)
   setSellTransactions(ledgerData.sellTransactions)
   setExchangeRate(ledgerData.exchangeRate)
+}
+
+function getDefaultTheme(): Theme {
+  const hour = new Date().getHours()
+  return hour >= 6 && hour < 18 ? 'day' : 'night'
 }
 
 async function refreshAndApplyTransactions({

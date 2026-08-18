@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { toThb } from '../lib/currency'
-import type { CurrencyCode, ExchangeRate, TransactionDraft, TransactionRecord } from '../types'
+import { getTranslations } from '../lib/i18n'
+import type { CurrencyCode, ExchangeRate, Language, TransactionDraft, TransactionRecord } from '../types'
 
 const CARD_TYPE_OPTIONS = [
   'Sport card',
@@ -18,6 +19,7 @@ export interface TransactionFormProps {
   editingTransaction: TransactionRecord | null
   getExchangeRate: () => Promise<ExchangeRate>
   isSubmitting?: boolean
+  language?: Language
   onClearEdit: () => void
   onSubmit: (draft: TransactionDraft) => Promise<void>
   resetSignal: number
@@ -28,6 +30,7 @@ export function TransactionForm({
   editingTransaction,
   getExchangeRate,
   isSubmitting = false,
+  language = 'en',
   onClearEdit,
   onSubmit,
   resetSignal,
@@ -37,6 +40,7 @@ export function TransactionForm({
   const [exchangeRate, setExchangeRate] = useState<ExchangeRate | null>(null)
   const [rateError, setRateError] = useState<string | null>(null)
   const [isLoadingRate, setIsLoadingRate] = useState(false)
+  const translations = getTranslations(language)
 
   useEffect(() => {
     if (editingTransaction) {
@@ -97,7 +101,7 @@ export function TransactionForm({
         }
 
         setExchangeRate(null)
-        setRateError(toErrorMessage(error))
+        setRateError(toErrorMessage(error, translations))
       })
       .finally(() => {
         if (!isCancelled) {
@@ -108,12 +112,12 @@ export function TransactionForm({
     return () => {
       isCancelled = true
     }
-  }, [draft.currency, draft.price, getExchangeRate])
+  }, [draft.currency, draft.price, getExchangeRate, translations])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const validationErrors = validateDraft(draft, exchangeRate)
+    const validationErrors = validateDraft(draft, exchangeRate, translations)
     setErrors(validationErrors)
 
     if (Object.keys(validationErrors).length > 0) {
@@ -147,18 +151,17 @@ export function TransactionForm({
         ? toThb(draft.price, 'THB', '1')
         : null
 
-  const submitLabel = editingTransaction ? 'UPDATE' : 'SAVE'
+  const submitLabel = editingTransaction ? translations.update : translations.save
 
   return (
     <section className="panel" aria-labelledby="transaction-form-title">
       <div className="panel-header">
-        <h2 id="transaction-form-title">Transaction form</h2>
-        <p>Capture BUY and SELL transactions with original currency details.</p>
+        <h2 id="transaction-form-title">{translations.transactionFormTitle}</h2>
       </div>
 
       <form className="ledger-form" onSubmit={handleSubmit}>
         <fieldset className="segment-control">
-          <legend>Action</legend>
+          <legend>{translations.action}</legend>
           <label className="segment-option">
             <input
               checked={draft.action === 'BUY'}
@@ -180,9 +183,9 @@ export function TransactionForm({
         </fieldset>
 
         <label className="field">
-          <span>Card Type</span>
+          <span>{translations.cardType}</span>
           <select
-            aria-label="Card Type"
+            aria-label={translations.cardType}
             onChange={(event) => updateDraft('cardType', event.target.value)}
             value={draft.cardType}
           >
@@ -196,10 +199,10 @@ export function TransactionForm({
 
         {draft.cardType === 'Others' ? (
           <label className="field">
-            <span>Custom card type</span>
+            <span>{translations.customCardType}</span>
             <input
               aria-invalid={Boolean(errors.customCardType)}
-              aria-label="Custom card type"
+              aria-label={translations.customCardType}
               onChange={(event) => updateDraft('customCardType', event.target.value)}
               type="text"
               value={draft.customCardType ?? ''}
@@ -209,10 +212,10 @@ export function TransactionForm({
         ) : null}
 
         <label className="field">
-          <span>Price</span>
+          <span>{translations.price}</span>
           <input
             aria-invalid={Boolean(errors.price)}
-            aria-label="Price"
+            aria-label={translations.price}
             inputMode="decimal"
             onChange={(event) => updateDraft('price', event.target.value)}
             placeholder="0.00"
@@ -223,9 +226,9 @@ export function TransactionForm({
         </label>
 
         <label className="field">
-          <span>Currency</span>
+          <span>{translations.currency}</span>
           <select
-            aria-label="Currency"
+            aria-label={translations.currency}
             onChange={(event) => updateDraft('currency', event.target.value as CurrencyCode)}
             value={draft.currency}
           >
@@ -236,13 +239,13 @@ export function TransactionForm({
 
         {draft.currency === 'USD' ? (
           <div className="rate-preview" aria-live="polite">
-            {isLoadingRate ? <p>Loading latest USD rate…</p> : null}
+            {isLoadingRate ? <p>{translations.loadingLatestRate}</p> : null}
             {exchangeRate ? (
               <>
-                <p>1 USD = ฿{exchangeRate.rate} THB</p>
-                {pricePreview ? <p>≈ ฿{pricePreview} THB</p> : null}
-                <p>Provider date: {exchangeRate.providerDate}</p>
-                {exchangeRate.stale ? <p>Cached rate</p> : null}
+                <p>{translations.usdToThb(exchangeRate.rate)}</p>
+                {pricePreview ? <p>{translations.approxThb(pricePreview)}</p> : null}
+                <p>{translations.providerDate(exchangeRate.providerDate)}</p>
+                {exchangeRate.stale ? <p>{translations.cachedRate}</p> : null}
               </>
             ) : null}
             {rateError ? <p className="field-error">{rateError}</p> : null}
@@ -250,15 +253,15 @@ export function TransactionForm({
           </div>
         ) : pricePreview ? (
           <div className="rate-preview" aria-live="polite">
-            <p>Canonical THB amount: ฿{pricePreview}</p>
+            <p>{translations.canonicalThb(pricePreview)}</p>
           </div>
         ) : null}
 
         <label className="field">
-          <span>Transaction date</span>
+          <span>{translations.transactionDate}</span>
           <input
             aria-invalid={Boolean(errors.transactionDate)}
-            aria-label="Transaction date"
+            aria-label={translations.transactionDate}
             onChange={(event) => updateDraft('transactionDate', event.target.value)}
             type="date"
             value={draft.transactionDate}
@@ -271,7 +274,7 @@ export function TransactionForm({
             {submitLabel}
           </button>
           <button disabled={isSubmitting} onClick={handleClear} type="button">
-            CLEAR
+            {translations.clear}
           </button>
         </div>
       </form>
@@ -297,25 +300,29 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-function validateDraft(draft: TransactionDraft, exchangeRate: ExchangeRate | null): FormErrors {
+function validateDraft(
+  draft: TransactionDraft,
+  exchangeRate: ExchangeRate | null,
+  translations: ReturnType<typeof getTranslations>,
+): FormErrors {
   const errors: FormErrors = {}
 
   if (!draft.price.trim()) {
-    errors.price = 'Price is required.'
+    errors.price = translations.priceRequired
   } else if (!Number.isFinite(Number(draft.price)) || Number(draft.price) <= 0) {
-    errors.price = 'Price must be greater than 0.'
+    errors.price = translations.pricePositive
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.transactionDate)) {
-    errors.transactionDate = 'Transaction date must use YYYY-MM-DD.'
+    errors.transactionDate = translations.dateFormat
   }
 
   if (draft.cardType === 'Others' && !draft.customCardType?.trim()) {
-    errors.customCardType = 'Custom card type is required.'
+    errors.customCardType = translations.customCardTypeRequired
   }
 
   if (draft.currency === 'USD' && !exchangeRate) {
-    errors.exchangeRate = 'A USD to THB rate is required before saving.'
+    errors.exchangeRate = translations.rateRequired
   }
 
   return errors
@@ -333,10 +340,10 @@ function trimTrailingZeros(value: string): string {
   return value.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')
 }
 
-function toErrorMessage(error: unknown): string {
+function toErrorMessage(error: unknown, translations: ReturnType<typeof getTranslations>): string {
   if (error instanceof Error) {
     return error.message
   }
 
-  return 'Unable to load the USD to THB rate right now.'
+  return translations.rateUnavailable
 }

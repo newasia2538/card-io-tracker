@@ -41,6 +41,9 @@ describe('AccountUpgradeDialog', () => {
       />,
     )
 
+    expect(screen.getByRole('region', { name: 'Upgrade account' })).toBeInTheDocument()
+    expect(screen.queryByText('Keep the same rows and user identity while adding email/password access.')).not.toBeInTheDocument()
+
     await user.type(screen.getByLabelText('Email'), 'collector@example.com')
     await user.click(screen.getByRole('button', { name: 'Send verification email' }))
 

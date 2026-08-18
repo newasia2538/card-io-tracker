@@ -17,6 +17,7 @@ describe('TransactionForm', () => {
   it('defaults to BUY with the required card type and currency options', () => {
     renderForm()
 
+    expect(screen.queryByText('Capture BUY and SELL transactions with original currency details.')).not.toBeInTheDocument()
     expect(screen.getByLabelText('BUY')).toBeChecked()
     expect(screen.getByLabelText('SELL')).not.toBeChecked()
     expect(screen.getByLabelText('Card Type')).toHaveDisplayValue('Sport card')

@@ -78,7 +78,7 @@ describe('App', () => {
 
     expect(screen.getByText('Loading your ledger…')).toBeInTheDocument()
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
 
     expect(authLoader.mock.invocationCallOrder[0]).toBeLessThan(
       (apiClient.listTransactions as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
@@ -86,6 +86,86 @@ describe('App', () => {
     expect(apiClient.listTransactions).toHaveBeenCalledWith('BUY')
     expect(apiClient.listTransactions).toHaveBeenCalledWith('SELL')
     expect(screen.getByRole('button', { name: 'Upgrade account' })).toBeInTheDocument()
+  })
+
+  it('shows CardIO branding and lets users switch day/night and language', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    expect(screen.getByText('Your card transaction tracker')).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Plain layout, compact controls, and one table for all activity. Newest transactions appear first by default.',
+      ),
+    ).not.toBeInTheDocument()
+    expect(document.documentElement.lang).toBe('en')
+    expect(screen.getByRole('group', { name: 'Theme' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Language' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'NIGHT' }))
+    expect(screen.getByRole('main')).toHaveAttribute('data-theme', 'night')
+
+    await user.click(screen.getByRole('button', { name: 'ไทย' }))
+    expect(screen.getByRole('main')).toHaveAttribute('data-language', 'th')
+    expect(document.documentElement.lang).toBe('th')
+    expect(screen.getByRole('heading', { name: 'เพิ่มธุรกรรม' })).toBeInTheDocument()
+  })
+
+  it('places the open Upgrade account panel before the transaction form', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
+
+    const upgradePanel = screen.getByRole('region', { name: 'Upgrade account' })
+    const transactionForm = screen.getByRole('region', { name: 'Transaction form' })
+
+    expect(upgradePanel.compareDocumentPosition(transactionForm)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it.each([
+    ['05:59:59', 'night'],
+    ['06:00:00', 'day'],
+    ['17:59:59', 'day'],
+    ['18:00:00', 'night'],
+  ] as const)('defaults to %s theme at %s local time', (time, expectedTheme) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(`2026-08-18T${time}`))
+
+    try {
+      render(
+        <App
+          apiClient={createApiClientDouble()}
+          authClient={createAuthClientDouble()}
+          authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+          locale="en-US"
+        />,
+      )
+
+      expect(screen.getByRole('main')).toHaveAttribute('data-theme', expectedTheme)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('refreshes after save and keeps the active tab plus display currency', async () => {
@@ -138,7 +218,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
 
     await user.click(screen.getByRole('button', { name: 'Sell (1)' }))
     await user.click(screen.getByRole('button', { name: 'USD' }))
@@ -185,7 +265,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
 
     await user.click(screen.getByRole('button', { name: 'Sell (1)' }))
     await user.click(screen.getByRole('button', { name: 'Edit Pokemon card' }))
@@ -242,7 +322,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
 
     await user.click(screen.getByRole('button', { name: 'Sell (1)' }))
     await user.click(screen.getByRole('button', { name: 'Edit Pokemon card' }))
@@ -435,7 +515,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
 
     await user.click(screen.getByRole('button', { name: 'USD' }))
     expect(screen.queryByText('Source: Frankfurter · 2026-08-17')).not.toBeInTheDocument()
@@ -504,7 +584,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
 
     await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
     await user.type(screen.getByLabelText('Email'), 'collector@example.com')
@@ -566,7 +646,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
 
     await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
     await user.type(screen.getByLabelText('Email'), 'collector@example.com')
@@ -600,7 +680,7 @@ describe('App', () => {
       />,
     )
 
-    await screen.findByRole('heading', { name: 'Card Ledger' })
+    await screen.findByRole('heading', { name: 'CardIO' })
     expect(screen.queryByRole('button', { name: 'Upgrade account' })).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Price'), '2500')

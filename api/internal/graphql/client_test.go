@@ -17,7 +17,6 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
-
 func TestClientListSendsHeadersAndDescendingSort(t *testing.T) {
 	t.Parallel()
 
@@ -75,8 +74,8 @@ func TestClientCreateSendsCanonicalStoredFields(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if !strings.Contains(req.Query, "insertIntoTransactionsCollection") {
-			t.Fatalf("query = %q, want insertIntoTransactionsCollection", req.Query)
+		if !strings.Contains(req.Query, "insertIntotransactionsCollection") {
+			t.Fatalf("query = %q, want insertIntotransactionsCollection", req.Query)
 		}
 
 		input, ok := req.Variables["input"].([]any)
@@ -100,7 +99,7 @@ func TestClientCreateSendsCanonicalStoredFields(t *testing.T) {
 			t.Fatalf("exchange_rate_date = %#v, want %q", record["exchange_rate_date"], "2026-08-17")
 		}
 
-		return jsonResponse(http.StatusOK, `{"data":{"insertIntoTransactionsCollection":{"records":[{"id":"txn-1","user_id":"user-123","action":"BUY","card_type":"Sport card","custom_card_type":null,"price":"100.00","currency":"USD","price_thb":"3550.00","exchange_rate_to_thb":"35.50","exchange_rate_date":"2026-08-17","transaction_date":"2026-08-17","created_at":"2026-08-17T10:00:00Z","updated_at":"2026-08-17T10:00:00Z"}]}}}`), nil
+		return jsonResponse(http.StatusOK, `{"data":{"insertIntotransactionsCollection":{"records":[{"id":"txn-1","user_id":"user-123","action":"BUY","card_type":"Sport card","custom_card_type":null,"price":"100.00","currency":"USD","price_thb":"3550.00","exchange_rate_to_thb":"35.50","exchange_rate_date":"2026-08-17","transaction_date":"2026-08-17","created_at":"2026-08-17T10:00:00Z","updated_at":"2026-08-17T10:00:00Z"}]}}}`), nil
 		}),
 	})
 
@@ -134,8 +133,8 @@ func TestClientUpdateUsesIDFilterAndAtMostOne(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if !strings.Contains(req.Query, "updateTransactionsCollection") {
-			t.Fatalf("query = %q, want updateTransactionsCollection", req.Query)
+		if !strings.Contains(req.Query, "updatetransactionsCollection") {
+			t.Fatalf("query = %q, want updatetransactionsCollection", req.Query)
 		}
 		if !strings.Contains(req.Query, "atMost: 1") {
 			t.Fatalf("query = %q, want atMost: 1", req.Query)
@@ -150,7 +149,7 @@ func TestClientUpdateUsesIDFilterAndAtMostOne(t *testing.T) {
 			t.Fatalf("id filter = %#v, want eq txn-123", filter["id"])
 		}
 
-		return jsonResponse(http.StatusOK, `{"data":{"updateTransactionsCollection":{"affectedCount":1,"records":[{"id":"txn-123","user_id":"user-123","action":"SELL","card_type":"Pokemon card","custom_card_type":null,"price":"50.00","currency":"THB","price_thb":"50.00","exchange_rate_to_thb":"1","exchange_rate_date":"2026-08-17","transaction_date":"2026-08-17","created_at":"2026-08-17T10:00:00Z","updated_at":"2026-08-17T11:00:00Z"}]}}}`), nil
+		return jsonResponse(http.StatusOK, `{"data":{"updatetransactionsCollection":{"affectedCount":1,"records":[{"id":"txn-123","user_id":"user-123","action":"SELL","card_type":"Pokemon card","custom_card_type":null,"price":"50.00","currency":"THB","price_thb":"50.00","exchange_rate_to_thb":"1","exchange_rate_date":"2026-08-17","transaction_date":"2026-08-17","created_at":"2026-08-17T10:00:00Z","updated_at":"2026-08-17T11:00:00Z"}]}}}`), nil
 		}),
 	})
 
@@ -184,8 +183,8 @@ func TestClientDeleteUsesIDFilterAndAtMostOne(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if !strings.Contains(req.Query, "deleteFromTransactionsCollection") {
-			t.Fatalf("query = %q, want deleteFromTransactionsCollection", req.Query)
+		if !strings.Contains(req.Query, "deleteFromtransactionsCollection") {
+			t.Fatalf("query = %q, want deleteFromtransactionsCollection", req.Query)
 		}
 		if !strings.Contains(req.Query, "atMost: 1") {
 			t.Fatalf("query = %q, want atMost: 1", req.Query)
@@ -199,7 +198,7 @@ func TestClientDeleteUsesIDFilterAndAtMostOne(t *testing.T) {
 			t.Fatalf("id filter = %#v, want eq txn-123", filter["id"])
 		}
 
-		return jsonResponse(http.StatusOK, `{"data":{"deleteFromTransactionsCollection":{"affectedCount":1}}}`), nil
+		return jsonResponse(http.StatusOK, `{"data":{"deleteFromtransactionsCollection":{"affectedCount":1}}}`), nil
 		}),
 	})
 

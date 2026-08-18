@@ -29,7 +29,7 @@ assert(
 assert(
   hasTagWithAttributes(indexHtml, 'meta', {
     name: 'theme-color',
-    content: '#0f766e',
+    content: '#5b789f',
   }),
   'dist/index.html must declare theme-color="#0f766e"',
 )
@@ -45,8 +45,8 @@ assert(
 assert(manifest.display === 'standalone', 'manifest display must be "standalone"')
 assert(manifest.start_url === '/', 'manifest start_url must be "/"')
 assert(
-  typeof manifest.name === 'string' && manifest.name.includes('Card Ledger'),
-  'manifest name must include "Card Ledger"',
+  typeof manifest.name === 'string' && manifest.name.includes('CardIO'),
+  'manifest name must include "CardIO"',
 )
 
 const brandingText = [

@@ -74,13 +74,40 @@ describe('TransactionList', () => {
 
     expect(screen.getByRole('button', { name: 'Buy (2)' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Sell (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'USD' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Original Currency' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Action' })).not.toBeInTheDocument()
+    expect(screen.queryByText('All transactions, newest first.')).not.toBeInTheDocument()
 
-    const rows = screen.getAllByRole('listitem')
+    const rows = screen.getAllByRole('row').slice(1)
     expect(within(rows[0]).getByText('Pokemon card')).toBeInTheDocument()
-    expect(within(rows[1]).getByText('$100.00 USD')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('$100.00')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Sell (1)' }))
     expect(onTabChange).toHaveBeenCalledWith('SELL')
+  })
+
+  it('shows all transactions by default sorted by latest transaction date', () => {
+    render(
+      <TransactionList
+        activeTab="ALL"
+        buyTransactions={[buyTransactions[1]]}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onTabChange={vi.fn()}
+        sellTransactions={[sellTransactions[0], buyTransactions[0]]}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'All (3)' })).toHaveAttribute('aria-pressed', 'true')
+
+    const rows = screen.getAllByRole('row').slice(1)
+    expect(rows[0]).toHaveClass('transaction-row--sell')
+    expect(rows[1]).toHaveClass('transaction-row--buy')
+    expect(rows[2]).toHaveClass('transaction-row--buy')
+    expect(within(rows[0]).getByText('Promo')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('Pokemon card')).toBeInTheDocument()
+    expect(within(rows[2]).getByText('$100.00')).toBeInTheDocument()
   })
 
   it('shows edit plus confirm/cancel delete actions for each row', async () => {
@@ -99,17 +126,22 @@ describe('TransactionList', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Edit Promo' }))
+    const row = screen.getAllByRole('row').slice(1)[0]
+
+    expect(within(row).getByText('EDIT')).toBeInTheDocument()
+    expect(within(row).getByText('DELETE')).toBeInTheDocument()
+
+    await user.click(within(row).getByRole('button', { name: 'Edit Promo' }))
     expect(onEdit).toHaveBeenCalledWith(sellTransactions[0])
 
-    await user.click(screen.getByRole('button', { name: 'Delete Promo' }))
+    await user.click(within(row).getByRole('button', { name: 'Delete Promo' }))
     expect(screen.getByRole('button', { name: 'Confirm delete' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onDelete).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Delete Promo' }))
+    await user.click(within(row).getByRole('button', { name: 'Delete Promo' }))
     await user.click(screen.getByRole('button', { name: 'Confirm delete' }))
     expect(onDelete).toHaveBeenCalledWith('sell-1')
   })

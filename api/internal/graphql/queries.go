@@ -33,7 +33,7 @@ query ListTransactions($filter: TransactionsFilter) {
 
 const createTransactionMutation = `
 mutation CreateTransaction($input: [TransactionsInsertInput!]!) {
-  insertIntoTransactionsCollection(objects: $input) {
+	insertIntotransactionsCollection(objects: $input) {
     records {
       ` + transactionFields + `
     }
@@ -43,7 +43,7 @@ mutation CreateTransaction($input: [TransactionsInsertInput!]!) {
 
 const updateTransactionMutation = `
 mutation UpdateTransaction($filter: TransactionsFilter!, $set: TransactionsUpdateInput!) {
-  updateTransactionsCollection(filter: $filter, set: $set, atMost: 1) {
+	updatetransactionsCollection(filter: $filter, set: $set, atMost: 1) {
     affectedCount
     records {
       ` + transactionFields + `
@@ -54,7 +54,7 @@ mutation UpdateTransaction($filter: TransactionsFilter!, $set: TransactionsUpdat
 
 const deleteTransactionMutation = `
 mutation DeleteTransaction($filter: TransactionsFilter!) {
-  deleteFromTransactionsCollection(filter: $filter, atMost: 1) {
+	deleteFromtransactionsCollection(filter: $filter, atMost: 1) {
     affectedCount
   }
 }

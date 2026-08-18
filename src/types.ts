@@ -1,5 +1,11 @@
 export type TransactionAction = 'BUY' | 'SELL'
 
+export type TransactionFilter = 'ALL' | TransactionAction
+
+export type Language = 'en' | 'th'
+
+export type Theme = 'day' | 'night'
+
 export type CurrencyCode = 'THB' | 'USD'
 
 export type ProfitLossStatus = 'profit' | 'loss' | 'neutral'

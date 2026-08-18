@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
-import type { AuthSession } from '../types'
+import { getTranslations } from '../lib/i18n'
+import type { AuthSession, Language } from '../types'
 
 type SessionLike = {
   access_token?: string
@@ -24,21 +25,24 @@ export interface AccountUpgradeAuthClient {
 
 export interface AccountUpgradeDialogProps {
   authClient: AccountUpgradeAuthClient
+  language?: Language
   onClose?: () => void
   onUpgraded: (session: AuthSession) => void
 }
 
 export function AccountUpgradeDialog({
   authClient,
+  language = 'en',
   onClose,
   onUpgraded,
 }: AccountUpgradeDialogProps) {
   const [phase, setPhase] = useState<'email' | 'pending' | 'password'>('email')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  const [messageKey, setMessageKey] = useState<UpgradeMessageKey | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const translations = getTranslations(language)
 
   async function handleEmailSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -52,9 +56,9 @@ export function AccountUpgradeDialog({
       }
 
       setPhase('pending')
-      setMessage('Verification email sent. Verify it, then continue to set your password.')
+      setMessageKey('verificationSent')
     } catch (nextError) {
-      setError(toUpgradeErrorMessage(nextError))
+      setError(toUpgradeErrorMessage(nextError, translations))
     } finally {
       setIsSubmitting(false)
     }
@@ -72,14 +76,14 @@ export function AccountUpgradeDialog({
 
       const session = toAuthSession(sessionResult.data.session)
       if (!session || session.isAnonymous) {
-        setMessage('Verification is still pending. Finish the email step and try again.')
+        setMessageKey('verificationPending')
         return
       }
 
       setPhase('password')
-      setMessage('Email verified. Set a password to finish upgrading your account.')
+      setMessageKey('emailVerified')
     } catch (nextError) {
-      setError(toUpgradeErrorMessage(nextError))
+      setError(toUpgradeErrorMessage(nextError, translations))
     } finally {
       setIsSubmitting(false)
     }
@@ -108,25 +112,24 @@ export function AccountUpgradeDialog({
 
       onUpgraded(session)
     } catch (nextError) {
-      setError(toUpgradeErrorMessage(nextError))
+      setError(toUpgradeErrorMessage(nextError, translations))
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <section className="panel upgrade-panel" aria-label="Upgrade account">
+    <section className="panel upgrade-panel" aria-label={translations.upgradeAccount}>
       <div className="panel-header">
-        <h2>Upgrade account</h2>
-        <p>Keep the same rows and user identity while adding email/password access.</p>
+        <h2>{translations.upgradeAccount}</h2>
       </div>
 
       {phase === 'email' ? (
         <form className="upgrade-form" onSubmit={handleEmailSubmit}>
           <label className="field">
-            <span>Email</span>
+            <span>{translations.email}</span>
             <input
-              aria-label="Email"
+              aria-label={translations.email}
               autoComplete="email"
               onChange={(event) => setEmail(event.target.value)}
               type="email"
@@ -136,11 +139,11 @@ export function AccountUpgradeDialog({
 
           <div className="form-actions">
             <button disabled={isSubmitting} type="submit">
-              Send verification email
+              {translations.sendVerificationEmail}
             </button>
             {onClose ? (
               <button disabled={isSubmitting} onClick={onClose} type="button">
-                Close
+                {translations.close}
               </button>
             ) : null}
           </div>
@@ -150,11 +153,11 @@ export function AccountUpgradeDialog({
       {phase === 'pending' ? (
         <div className="upgrade-form">
           <button disabled={isSubmitting} onClick={() => void handleVerificationRefresh()} type="button">
-            I've verified my email
+            {translations.verifiedEmail}
           </button>
           {onClose ? (
             <button disabled={isSubmitting} onClick={onClose} type="button">
-              Close
+              {translations.close}
             </button>
           ) : null}
         </div>
@@ -163,9 +166,9 @@ export function AccountUpgradeDialog({
       {phase === 'password' ? (
         <form className="upgrade-form" onSubmit={handlePasswordSubmit}>
           <label className="field">
-            <span>Password</span>
+            <span>{translations.password}</span>
             <input
-              aria-label="Password"
+              aria-label={translations.password}
               autoComplete="new-password"
               onChange={(event) => setPassword(event.target.value)}
               type="password"
@@ -175,18 +178,18 @@ export function AccountUpgradeDialog({
 
           <div className="form-actions">
             <button disabled={isSubmitting} type="submit">
-              Set password
+              {translations.setPassword}
             </button>
             {onClose ? (
               <button disabled={isSubmitting} onClick={onClose} type="button">
-                Close
+                {translations.close}
               </button>
             ) : null}
           </div>
         </form>
       ) : null}
 
-      {message ? <p role="status">{message}</p> : null}
+      {messageKey ? <p role="status">{translations[messageKey]}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
     </section>
   )
@@ -204,14 +207,19 @@ function toAuthSession(session: SessionLike | null): AuthSession | null {
   }
 }
 
-function toUpgradeErrorMessage(error: unknown): string {
+type UpgradeMessageKey = 'verificationSent' | 'verificationPending' | 'emailVerified'
+
+function toUpgradeErrorMessage(
+  error: unknown,
+  translations: ReturnType<typeof getTranslations>,
+): string {
   if (error instanceof Error) {
     if (error.message.toLowerCase().includes('already')) {
-      return 'This email is already registered. Try another email address.'
+      return translations.emailAlreadyRegistered
     }
 
     return error.message
   }
 
-  return 'Something went wrong while upgrading the account.'
+  return translations.upgradeError
 }

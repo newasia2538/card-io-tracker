@@ -80,7 +80,7 @@ func ValidateAndCanonicalize(ctx context.Context, input TransactionInput, provid
 		return CanonicalTransaction{}, fmt.Errorf("get USD/THB rate: %w", err)
 	}
 
-	rateRat, err := parsePositiveDecimal(rate.Value)
+	rateRat, err := parsePositiveRate(rate.Value)
 	if err != nil {
 		return CanonicalTransaction{}, fmt.Errorf("%w: exchange rate must be positive: %v", errInvalidUSDRate, err)
 	}
@@ -111,6 +111,17 @@ func validateCustomCardType(cardType string, custom *string) (*string, error) {
 }
 
 func parsePositiveDecimal(value string) (*big.Rat, error) {
+	rat, err := parsePositiveRate(value)
+	if err != nil {
+		return nil, err
+	}
+	if fractionalDigits(value) > 2 {
+		return nil, errors.New("price must have at most 2 decimal places")
+	}
+	return rat, nil
+}
+
+func parsePositiveRate(value string) (*big.Rat, error) {
 	if !decimalPattern.MatchString(value) {
 		return nil, errors.New("price must be a decimal")
 	}
@@ -121,9 +132,6 @@ func parsePositiveDecimal(value string) (*big.Rat, error) {
 	}
 	if rat.Sign() <= 0 {
 		return nil, errors.New("price must be positive")
-	}
-	if fractionalDigits(value) > 2 {
-		return nil, errors.New("price must have at most 2 decimal places")
 	}
 	return rat, nil
 }

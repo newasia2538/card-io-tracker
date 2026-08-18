@@ -222,6 +222,34 @@ func TestValidateAndCanonicalizeUSDConvertsExactly(t *testing.T) {
 	}
 }
 
+func TestValidateAndCanonicalizeUSDAllowsPreciseExchangeRate(t *testing.T) {
+	t.Parallel()
+
+	got, err := ValidateAndCanonicalize(context.Background(), TransactionInput{
+		Action:          "BUY",
+		CardType:        "Sport card",
+		Price:           "1.00",
+		Currency:        "USD",
+		TransactionDate: "2026-08-17",
+	}, stubRateProvider{
+		rate: rates.Rate{
+			Base:         "USD",
+			Quote:        "THB",
+			Value:        "33.122",
+			ProviderDate: time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC),
+		},
+	})
+	if err != nil {
+		t.Fatalf("ValidateAndCanonicalize() error = %v", err)
+	}
+	if got.PriceTHB != "33.12" {
+		t.Fatalf("PriceTHB = %q, want %q", got.PriceTHB, "33.12")
+	}
+	if got.ExchangeRateToTHB != "33.122" {
+		t.Fatalf("ExchangeRateToTHB = %q, want %q", got.ExchangeRateToTHB, "33.122")
+	}
+}
+
 func TestValidateAndCanonicalizeRejectsPriceWithMoreThanTwoFractionalDigits(t *testing.T) {
 	t.Parallel()
 

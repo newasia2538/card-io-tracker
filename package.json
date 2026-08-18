@@ -4,6 +4,7 @@
   "description": "",
   "private": true,
   "scripts": {
+    "api": "set -a && . ./.env && set +a && cd api && go run ./cmd/server",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",

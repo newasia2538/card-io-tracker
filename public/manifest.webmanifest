@@ -1,12 +1,12 @@
 {
-  "name": "Card Ledger",
-  "short_name": "Card Ledger",
-  "description": "Card Ledger tracks THB and USD card trades with canonical THB totals.",
+  "name": "CardIO",
+  "short_name": "CardIO",
+  "description": "Your card transaction tracker for THB and USD card trades.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f5f0e8",
-  "theme_color": "#0f766e",
+  "background_color": "#f5f7fa",
+  "theme_color": "#5b789f",
   "icons": [
     {
       "src": "/icon.svg",

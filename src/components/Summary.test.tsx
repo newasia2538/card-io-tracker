@@ -36,6 +36,7 @@ describe('Summary', () => {
     expect(screen.getByText('SELL')).toBeInTheDocument()
     expect(screen.getByText('P/L')).toBeInTheDocument()
     expect(screen.getByText('Profit')).toBeInTheDocument()
+    expect(screen.queryByText('Canonical totals are always based on saved THB amounts.')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'THB' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText('Source: Frankfurter · 2026-08-17')).not.toBeInTheDocument()
 

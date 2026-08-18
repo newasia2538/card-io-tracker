@@ -1,39 +1,62 @@
-# Card Ledger
+# CardIO
 
-Card Ledger is a React + Vite PWA with a Go API for tracking card buy/sell activity. The app silently creates a Supabase anonymous session on first use, stores records behind PostgreSQL RLS, and keeps THB as the canonical saved amount while still preserving original THB/USD input history.
+Your card transaction tracker.
 
-## Environment
+CardIO is a responsive React and Vite PWA backed by a small Go API. It records card buy and sell transactions, keeps THB as the canonical saved amount, and preserves the original THB/USD input history.
 
-Frontend variables:
+## Features
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- Plain, responsive dashboard with compact controls and a simple transaction table.
+- Day and night themes controlled by the switch at the top right.
+- English and Thai translations controlled by the language switch.
+- All transactions shown by default, sorted newest first, with BUY and SELL filters.
+- Add, edit, and delete transaction records.
+- THB and USD input with server-side exchange-rate lookup through Frankfurter.
+- Anonymous Supabase sessions for first-use access, with an optional account upgrade flow.
+- Supabase GraphQL access protected by PostgreSQL row-level security.
+- Installable PWA with a same-origin app shell cache.
 
-Backend variables:
+## Tech stack
 
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
-- `FRANKFURTER_BASE_URL=https://api.frankfurter.dev`
-- `PORT=8080`
+- React 19, TypeScript, Vite, and Vitest
+- Go 1.25.1 API
+- Supabase Auth, GraphQL, and PostgreSQL RLS
+- Frankfurter exchange-rate API
 
-Use the Supabase publishable key on both sides. Do not expose or bundle a Supabase service-role key in the frontend.
+## Requirements
 
-## Local Setup
+- Node.js and npm
+- Go 1.25.1 or newer compatible with `api/go.mod`
+- A Supabase project with anonymous sign-ins enabled
+- The Supabase `pg_graphql` extension enabled
 
-1. Install frontend dependencies:
-   `npm install`
-2. Create the frontend env file:
-   `cp .env.example .env`
-3. Set the frontend values in `.env`:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
-4. Export the backend variables before starting Go:
-   - `SUPABASE_URL`
-   - `SUPABASE_PUBLISHABLE_KEY`
-   - `FRANKFURTER_BASE_URL=https://api.frankfurter.dev`
-   - `PORT=8080`
+## Project structure
 
-Example backend export block:
+```text
+src/                 React application, translations, API client, and tests
+api/                 Go HTTP API and API tests
+supabase/migrations/ Database schema and RLS policies
+public/              PWA manifest, service worker, and icon
+scripts/             Build and PWA verification scripts
+```
+
+## Setup
+
+Install the frontend dependencies and create the local environment file:
+
+```bash
+npm install
+cp .env.example .env
+```
+
+Set these frontend values in `.env`:
+
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+The Go API reads its own values from the process environment. Export them before starting the API:
 
 ```bash
 export SUPABASE_URL="https://your-project.supabase.co"
@@ -42,48 +65,88 @@ export FRANKFURTER_BASE_URL="https://api.frankfurter.dev"
 export PORT="8080"
 ```
 
-## Supabase Setup
+Use the Supabase publishable key on both sides. Never put a Supabase service-role key in `.env`, the frontend bundle, or source control.
 
-1. Enable anonymous sign-ins in the Supabase Auth settings so the browser can create a session on first load.
-2. For local Supabase CLI auth flows, keep anonymous sign-ins and manual account linking enabled, with redirect URLs that include both `http://localhost:5173` and `http://127.0.0.1:5173`.
-3. Ensure the `pg_graphql` extension is enabled for the project before using the generated GraphQL collections.
-4. Apply the latest migration from `supabase/migrations/`.
-   - If you use the Supabase CLI, run `supabase db push`.
-   - If you use the hosted dashboard only, apply `supabase/migrations/20260816210517_create_transactions.sql` in the SQL editor.
-5. Keep the transaction RLS policies in place so every query and mutation stays scoped to `auth.uid()`.
-6. Keep using the publishable key on both the frontend and the Go API. The Go API forwards the user JWT with that publishable key to Supabase GraphQL and does not use a service-role key.
+## Supabase setup
 
-## Local Run
+1. Enable anonymous sign-ins in Supabase Auth.
+2. Enable `pg_graphql` for the project.
+3. Apply the migration in `supabase/migrations/20260816210517_create_transactions.sql`.
 
-1. Start the API from the repository root:
-   `cd api && go run ./cmd/server`
-2. Start the frontend dev server in another terminal:
-   `npm run dev`
-3. Open the Vite URL shown in the terminal and wait for the app to create an anonymous Supabase session automatically.
+   With the Supabase CLI:
 
-## Supabase Notes
+   ```bash
+   supabase db push
+   ```
 
-- The API endpoints expect the browser bearer token on every `/api/` request.
-- Exchange rates are fetched server-side from Frankfurter, defaulting to `https://api.frankfurter.dev`.
+   With the hosted dashboard, paste the migration into the SQL editor and run it.
 
-## Account Linking
+4. Keep the transaction RLS policies enabled. They scope reads and writes to `auth.uid()`.
+5. For account upgrades, add both local development URLs to Supabase Auth redirect URLs:
+   - `http://localhost:5173`
+   - `http://127.0.0.1:5173`
 
-1. Start with the anonymous session created on first load. That session already owns the user's rows.
-2. Open the `Upgrade account` flow.
-3. Enter the email address and submit the verification request.
-4. Complete the verification email in the same Supabase account flow.
-5. Return through either `http://localhost:5173` or `http://127.0.0.1:5173`, choose `I've verified my email`, then set the password.
-6. Confirm the verified session keeps the same Supabase user ID so the existing anonymous rows remain attached.
+## Run locally
 
-## PWA + Network Behavior
+Start the API in one terminal. This command loads the backend values from the root `.env` file:
 
-- The web app manifest and service worker make the app installable and cache only the same-origin app shell/static assets.
-- Requests to `/api/` stay network-required and are never queued for offline replay.
-- Exchange rates are fetched server-side from Frankfurter, defaulting to `https://api.frankfurter.dev`.
+```bash
+npm run api
+```
+
+Start the frontend in a second terminal from the repository root:
+
+```bash
+npm run dev -- --host 127.0.0.1
+```
+
+Open the URL printed by Vite. The frontend proxies `/api` requests to `http://localhost:8080`.
+
+## Manual test checklist
+
+After the app loads:
+
+1. Confirm the header says `CardIO` and `Your card transaction tracker`.
+2. Confirm the default theme follows local time: DAY from 06:00 through 17:59:59, NIGHT from 18:00 through 05:59:59. Switch between DAY and NIGHT and check that all text and controls remain readable.
+3. Switch between EN and ไทย. Check that the page content, tabs, form labels, and status text translate.
+4. Confirm the All tab is selected initially and transactions are newest first.
+5. Select BUY and SELL to filter the transaction table.
+6. Add a transaction, edit it, and delete it.
+7. Refresh the page and confirm the saved transaction remains available.
+8. Open `Upgrade account` only when you have configured Supabase email authentication.
+
+## Account upgrade flow
+
+CardIO starts with an anonymous Supabase session. That session owns the initial transaction rows. To preserve those rows while adding a login:
+
+1. Open `Upgrade account`.
+2. Submit an email address and complete the verification email.
+3. Return to the app and choose `I've verified my email`.
+4. Set the account password.
+
+The upgrade should keep the same Supabase user ID, so existing anonymous rows remain attached to the account.
+
+## PWA and network behavior
+
+The manifest and service worker make CardIO installable and cache the same-origin app shell and static assets. API calls remain network-required and are not queued for offline replay. Exchange rates are fetched server-side from Frankfurter.
 
 ## Verification
 
-- `npm test`
-- `npm run build`
-- `node scripts/check-pwa.mjs`
-- `cd api && GOCACHE=/private/tmp/card-ledger-go-cache go test ./...`
+Run the frontend checks from the repository root:
+
+```bash
+npm test
+npm run build
+node scripts/check-pwa.mjs
+```
+
+Run the Go API tests:
+
+```bash
+cd api
+GOCACHE=/private/tmp/cardio-go-cache go test ./...
+```
+
+## License
+
+This repository does not currently declare a public license.

@@ -1,20 +1,23 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
+import { getTranslations } from '../lib/i18n'
 import { getCurrencySymbol } from '../lib/currency'
-import type { TransactionAction, TransactionRecord } from '../types'
+import type { Language, TransactionFilter, TransactionRecord } from '../types'
 
 export interface TransactionListProps {
-  activeTab: TransactionAction
+  activeTab: TransactionFilter
   buyTransactions: TransactionRecord[]
+  language?: Language
   onDelete: (id: string) => Promise<void>
   onEdit: (transaction: TransactionRecord) => void
-  onTabChange: (action: TransactionAction) => void
+  onTabChange: (action: TransactionFilter) => void
   sellTransactions: TransactionRecord[]
 }
 
 export function TransactionList({
   activeTab,
   buyTransactions,
+  language = 'en',
   onDelete,
   onEdit,
   onTabChange,
@@ -22,7 +25,17 @@ export function TransactionList({
 }: TransactionListProps) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null)
-  const visibleTransactions = activeTab === 'BUY' ? buyTransactions : sellTransactions
+  const translations = getTranslations(language)
+  const allTransactions = useMemo(
+    () => sortTransactionsLatestFirst([...buyTransactions, ...sellTransactions]),
+    [buyTransactions, sellTransactions],
+  )
+  const visibleTransactions =
+    activeTab === 'ALL'
+      ? allTransactions
+      : activeTab === 'BUY'
+        ? sortTransactionsLatestFirst([...buyTransactions])
+        : sortTransactionsLatestFirst([...sellTransactions])
 
   async function handleDelete(id: string) {
     setIsDeletingId(id)
@@ -38,86 +51,123 @@ export function TransactionList({
   return (
     <section className="panel" aria-labelledby="transactions-title">
       <div className="panel-header">
-        <h2 id="transactions-title">Transactions</h2>
-        <p>Latest entries appear first inside each action tab.</p>
+        <h2 id="transactions-title">{translations.transactionsTitle}</h2>
       </div>
 
-      <div className="tab-strip" aria-label="Transaction tabs">
+      <div className="tab-strip" aria-label={translations.transactionTabs}>
+        <button
+          aria-pressed={activeTab === 'ALL'}
+          onClick={() => onTabChange('ALL')}
+          type="button"
+        >
+          {translations.all} ({allTransactions.length})
+        </button>
         <button
           aria-pressed={activeTab === 'BUY'}
           onClick={() => onTabChange('BUY')}
           type="button"
         >
-          Buy ({buyTransactions.length})
+          {translations.buy} ({buyTransactions.length})
         </button>
         <button
           aria-pressed={activeTab === 'SELL'}
           onClick={() => onTabChange('SELL')}
           type="button"
         >
-          Sell ({sellTransactions.length})
+          {translations.sell} ({sellTransactions.length})
         </button>
       </div>
 
       {visibleTransactions.length === 0 ? (
-        <p className="empty-state">No {activeTab} transactions yet.</p>
+        <p className="empty-state">
+          {translations.noTransactions(
+            activeTab === 'ALL'
+              ? translations.all
+              : activeTab === 'BUY'
+                ? translations.buy.toUpperCase()
+                : translations.sell.toUpperCase(),
+          )}
+        </p>
       ) : (
-        <ol className="transaction-list">
-          {visibleTransactions.map((transaction) => {
-            const label = getTransactionLabel(transaction)
+        <div className="transaction-table-wrap">
+          <table className="transaction-table">
+            <thead>
+              <tr>
+                <th data-label={translations.transactionDate} scope="col">
+                  {translations.transactionDate}
+                </th>
+                <th data-label={translations.cardType} scope="col">
+                  {translations.cardType}
+                </th>
+                <th data-label="USD" scope="col">USD</th>
+                <th data-label="THB" scope="col">THB</th>
+                <th data-label={translations.actions} scope="col">
+                  {translations.actions}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleTransactions.map((transaction) => {
+                const label = getTransactionLabel(transaction)
+                const isPendingDelete = pendingDeleteId === transaction.id
+                const isDeleting = isDeletingId === transaction.id
 
-            return (
-              <li key={transaction.id} className="transaction-row">
-                <div className="transaction-row__main">
-                  <div>
-                    <span className={`action-pill action-pill--${transaction.action.toLowerCase()}`}>
-                      {transaction.action}
-                    </span>
-                    <h3>{label}</h3>
-                  </div>
-                  <p>{transaction.transactionDate}</p>
-                </div>
+                return (
+                  <tr className={`transaction-row transaction-row--${transaction.action.toLowerCase()}`} key={transaction.id}>
+                    <td data-label={translations.transactionDate}>{transaction.transactionDate}</td>
+                    <td data-label={translations.cardType}>{label}</td>
+                    <td data-label="USD">{formatOriginalAmount(transaction.price, transaction.currency, language)}</td>
+                    <td data-label="THB">{formatThbAmount(transaction.priceThb, language)}</td>
+                    <td data-label={translations.actions}>
+                      <div className="transaction-row__actions">
+                        <button aria-label={translations.edit(label)} onClick={() => onEdit(transaction)} type="button">
+                          {translations.editAction}
+                        </button>
 
-                <div className="transaction-row__meta">
-                  <p>{formatOriginalAmount(transaction.price, transaction.currency)}</p>
-                  <p>Original currency</p>
-                </div>
-
-                <div className="transaction-row__actions">
-                  <button onClick={() => onEdit(transaction)} type="button">
-                    Edit {label}
-                  </button>
-
-                  {pendingDeleteId === transaction.id ? (
-                    <>
-                      <button
-                        disabled={isDeletingId === transaction.id}
-                        onClick={() => void handleDelete(transaction.id)}
-                        type="button"
-                      >
-                        Confirm delete
-                      </button>
-                      <button
-                        disabled={isDeletingId === transaction.id}
-                        onClick={() => setPendingDeleteId(null)}
-                        type="button"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <button onClick={() => setPendingDeleteId(transaction.id)} type="button">
-                      Delete {label}
-                    </button>
-                  )}
-                </div>
-              </li>
-            )
-          })}
-        </ol>
+                        {isPendingDelete ? (
+                          <>
+                            <button
+                              disabled={isDeleting}
+                              onClick={() => void handleDelete(transaction.id)}
+                              type="button"
+                            >
+                              {translations.confirmDelete}
+                            </button>
+                            <button
+                              disabled={isDeleting}
+                              onClick={() => setPendingDeleteId(null)}
+                              type="button"
+                            >
+                              {translations.cancel}
+                            </button>
+                          </>
+                        ) : (
+                          <button aria-label={translations.delete(label)} onClick={() => setPendingDeleteId(transaction.id)} type="button">
+                            {translations.deleteAction}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )
+}
+
+function sortTransactionsLatestFirst(transactions: TransactionRecord[]): TransactionRecord[] {
+  return transactions.sort((left, right) => {
+    const dateOrder = right.transactionDate.localeCompare(left.transactionDate)
+    if (dateOrder !== 0) {
+      return dateOrder
+    }
+
+    return right.createdAt.localeCompare(left.createdAt)
+  })
 }
 
 function getTransactionLabel(transaction: TransactionRecord): string {
@@ -128,11 +178,20 @@ function getTransactionLabel(transaction: TransactionRecord): string {
   return transaction.cardType
 }
 
-function formatOriginalAmount(amount: string, currency: 'THB' | 'USD'): string {
-  const formatted = new Intl.NumberFormat('en-US', {
+function formatOriginalAmount(amount: string, currency: 'THB' | 'USD', language: Language): string {
+  const formatted = new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(Number(amount))
 
-  return `${getCurrencySymbol(currency)}${formatted} ${currency}`
+  return `${getCurrencySymbol(currency)}${formatted}`
+}
+
+function formatThbAmount(amount: string, language: Language): string {
+  const formatted = new Intl.NumberFormat(language === 'th' ? 'th-TH' : 'en-US', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  }).format(Number(amount))
+
+  return `${getCurrencySymbol('THB')}${formatted}`
 }

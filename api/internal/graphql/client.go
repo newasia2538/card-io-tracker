@@ -81,14 +81,14 @@ type graphQLResponse struct {
 		} `json:"transactionsCollection"`
 		InsertIntoTransactionsCollection struct {
 			Records []transactions.Transaction `json:"records"`
-		} `json:"insertIntoTransactionsCollection"`
+		} `json:"insertIntotransactionsCollection"`
 		UpdateTransactionsCollection struct {
 			AffectedCount int                        `json:"affectedCount"`
 			Records       []transactions.Transaction `json:"records"`
-		} `json:"updateTransactionsCollection"`
+		} `json:"updatetransactionsCollection"`
 		DeleteFromTransactionsCollection struct {
 			AffectedCount int `json:"affectedCount"`
-		} `json:"deleteFromTransactionsCollection"`
+		} `json:"deleteFromtransactionsCollection"`
 	} `json:"data"`
 	Errors []graphQLErrorPayload `json:"errors"`
 }
