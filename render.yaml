@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: cardio-api
+    runtime: go
+    plan: free
+    region: singapore
+    rootDir: api
+    buildCommand: go build -tags netgo -ldflags '-s -w' -o app ./cmd/server
+    startCommand: ./app
+    healthCheckPath: /healthz
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: FRANKFURTER_BASE_URL
+        value: https://api.frankfurter.dev
