@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { ensureAuthSession, getSupabaseClient } from './lib/auth'
+import {
+  ensureAuthSession,
+  getSupabaseClient,
+  type AccountAuthClient,
+} from './lib/auth'
 import { apiClient as defaultApiClient, type ApiClient } from './lib/api'
 import { getDefaultCurrency, summarizeTransactions } from './lib/currency'
 import { getTranslations, type Translations } from './lib/i18n'
@@ -14,24 +18,22 @@ import type {
   TransactionFilter,
   TransactionRecord,
 } from './types'
-import {
-  AccountUpgradeDialog,
-  type AccountUpgradeAuthClient,
-} from './components/AccountUpgradeDialog'
+import { AccountSignInDialog } from './components/AccountSignInDialog'
+import { AccountUpgradeDialog } from './components/AccountUpgradeDialog'
 import { Summary } from './components/Summary'
 import { TransactionForm } from './components/TransactionForm'
 import { TransactionList } from './components/TransactionList'
 
 export interface AppProps {
   apiClient?: ApiClient
-  authClient?: AccountUpgradeAuthClient
+  authClient?: AccountAuthClient
   authLoader?: () => Promise<AuthSession>
   locale?: string
 }
 
 export function App({
   apiClient = defaultApiClient,
-  authClient = getSupabaseClient().auth as unknown as AccountUpgradeAuthClient,
+  authClient = getSupabaseClient().auth as unknown as AccountAuthClient,
   authLoader = ensureAuthSession,
   locale = navigator.language,
 }: AppProps) {
@@ -52,6 +54,8 @@ export function App({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [bootstrapErrorMessage, setBootstrapErrorMessage] = useState<string | null>(null)
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
+  const [isSignInOpen, setIsSignInOpen] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
   const translations = getTranslations(language)
   const statusMessage = getStatusMessage(translations, statusKey)
@@ -175,6 +179,37 @@ export function App({
     setResetSignal((value) => value + 1)
   }
 
+  async function applyAuthenticatedSession(
+    nextSession: AuthSession,
+    nextStatusKey: 'upgraded' | 'signedIn',
+  ) {
+    setSession(nextSession)
+    setBuyTransactions([])
+    setSellTransactions([])
+    setExchangeRate(null)
+    setIsLoading(true)
+    setBootstrapErrorMessage(null)
+    setErrorMessage(null)
+    setStatusKey('loading')
+
+    try {
+      await refreshAndApplyTransactions({
+        client: apiClient,
+        setBuyTransactions,
+        setExchangeRate,
+        setSellTransactions,
+      })
+      setIsUpgradeOpen(false)
+      setIsSignInOpen(false)
+      setStatusKey(nextStatusKey)
+    } catch (error) {
+      setBootstrapErrorMessage(toErrorMessage(error))
+      setStatusKey('unavailable')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   function handleUpgraded(nextSession: AuthSession) {
     if (session?.isAnonymous && nextSession.userId !== session.userId) {
       setErrorMessage(translations.sessionMismatch)
@@ -182,10 +217,42 @@ export function App({
       return
     }
 
+    void applyAuthenticatedSession(nextSession, 'upgraded')
+  }
+
+  function handleSignedIn(nextSession: AuthSession) {
+    if (nextSession.isAnonymous) {
+      setErrorMessage(translations.signInError)
+      return
+    }
+
+    void applyAuthenticatedSession(nextSession, 'signedIn')
+  }
+
+  async function handleSignOut() {
+    setIsSigningOut(true)
     setErrorMessage(null)
-    setSession(nextSession)
-    setIsUpgradeOpen(false)
-    setStatusKey('upgraded')
+
+    try {
+      const result = await authClient.signOut()
+      if (result.error) {
+        throw result.error
+      }
+
+      setSession(null)
+      setBuyTransactions([])
+      setSellTransactions([])
+      setExchangeRate(null)
+      setIsUpgradeOpen(false)
+      setIsSignInOpen(false)
+      setBootstrapErrorMessage(null)
+      setStatusKey('loading')
+      setBootstrapAttempt((value) => value + 1)
+    } catch (error) {
+      setErrorMessage(toErrorMessage(error) || translations.signOutError)
+    } finally {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -244,22 +311,40 @@ export function App({
           </div>
 
           <div className="status-panel">
-          <p aria-live="polite" role="status">
-            {isLoading ? translations.loadingLedger : statusMessage}
-          </p>
-          {bootstrapErrorMessage || errorMessage ? (
-            <p role="alert">{bootstrapErrorMessage ?? errorMessage}</p>
-          ) : null}
-          {bootstrapErrorMessage && !isLoading ? (
-            <button onClick={() => setBootstrapAttempt((value) => value + 1)} type="button">
-              {translations.retryLoadingLedger}
-            </button>
-          ) : null}
-          {session?.isAnonymous ? (
-            <button onClick={() => setIsUpgradeOpen((open) => !open)} type="button">
-              {translations.upgradeAccount}
-            </button>
-          ) : null}
+            <p aria-live="polite" role="status">
+              {isLoading ? translations.loadingLedger : statusMessage}
+            </p>
+            {bootstrapErrorMessage || errorMessage ? (
+              <p role="alert">{bootstrapErrorMessage ?? errorMessage}</p>
+            ) : null}
+            {bootstrapErrorMessage && !isLoading ? (
+              <button onClick={() => setBootstrapAttempt((value) => value + 1)} type="button">
+                {translations.retryLoadingLedger}
+              </button>
+            ) : null}
+            {session?.isAnonymous ? (
+              <>
+                <button onClick={() => setIsUpgradeOpen((open) => !open)} type="button">
+                  {translations.createAccount}
+                </button>
+                <button onClick={() => setIsSignInOpen(true)} type="button">
+                  {translations.signIn}
+                </button>
+              </>
+            ) : session ? (
+              <>
+                <span aria-label={translations.accountEmail} className="account-email">
+                  {session.email ?? translations.accountEmail}
+                </span>
+                <button
+                  disabled={isSigningOut}
+                  onClick={() => void handleSignOut()}
+                  type="button"
+                >
+                  {translations.signOut}
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </section>
@@ -272,6 +357,16 @@ export function App({
               language={language}
               onClose={() => setIsUpgradeOpen(false)}
               onUpgraded={handleUpgraded}
+            />
+          ) : null}
+
+          {session?.isAnonymous && isSignInOpen ? (
+            <AccountSignInDialog
+              authClient={authClient}
+              hasAnonymousTransactions={allTransactions.length > 0}
+              language={language}
+              onClose={() => setIsSignInOpen(false)}
+              onSignedIn={handleSignedIn}
             />
           ) : null}
 
@@ -319,6 +414,7 @@ type StatusKey =
   | 'updated'
   | 'deleted'
   | 'upgraded'
+  | 'signedIn'
   | 'upgradeUnavailable'
 
 function getStatusMessage(translations: Translations, statusKey: StatusKey): string {
@@ -337,6 +433,8 @@ function getStatusMessage(translations: Translations, statusKey: StatusKey): str
       return translations.transactionDeleted
     case 'upgraded':
       return translations.accountUpgraded
+    case 'signedIn':
+      return translations.signedIn
     case 'upgradeUnavailable':
       return translations.unableToUpgrade
   }
