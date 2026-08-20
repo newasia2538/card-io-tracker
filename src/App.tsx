@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   ensureAuthSession,
@@ -57,8 +57,13 @@ export function App({
   const [isSignInOpen, setIsSignInOpen] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
+  const accountGenerationRef = useRef(0)
   const translations = getTranslations(language)
   const statusMessage = getStatusMessage(translations, statusKey)
+  const getExchangeRate = useCallback(
+    () => apiClient.getExchangeRate(session ?? undefined),
+    [apiClient, session],
+  )
 
   useEffect(() => {
     document.documentElement.lang = language
@@ -76,6 +81,8 @@ export function App({
 
   useEffect(() => {
     let isCancelled = false
+    const accountGeneration = accountGenerationRef.current
+    const isStale = () => isCancelled || accountGeneration !== accountGenerationRef.current
 
     async function bootstrap() {
       setIsLoading(true)
@@ -85,27 +92,31 @@ export function App({
 
       try {
         const nextSession = await authLoader()
-        if (isCancelled) {
+        if (isStale()) {
           return
         }
 
         setSession(nextSession)
         await refreshAndApplyTransactions({
           client: apiClient,
-          isCancelled: () => isCancelled,
+          isCancelled: isStale,
+          session: nextSession,
           setBuyTransactions,
           setExchangeRate,
           setSellTransactions,
         })
+        if (isStale()) {
+          return
+        }
         setBootstrapErrorMessage(null)
         setStatusKey('ready')
       } catch (error) {
-        if (!isCancelled) {
+        if (!isStale()) {
           setBootstrapErrorMessage(toErrorMessage(error))
           setStatusKey('unavailable')
         }
       } finally {
-        if (!isCancelled) {
+        if (!isStale()) {
           setIsLoading(false)
         }
       }
@@ -119,58 +130,81 @@ export function App({
   }, [apiClient, authLoader, bootstrapAttempt])
 
   async function handleSubmit(draft: TransactionDraft) {
+    const accountGeneration = accountGenerationRef.current
+    const isStale = () => accountGeneration !== accountGenerationRef.current
     setIsSubmitting(true)
     setErrorMessage(null)
 
     try {
       if (editingTransaction) {
-        await apiClient.updateTransaction(editingTransaction.id, draft)
+        await apiClient.updateTransaction(editingTransaction.id, draft, session ?? undefined)
         await refreshAndApplyTransactions({
           client: apiClient,
+          isCancelled: isStale,
+          session: session ?? undefined,
           setBuyTransactions,
           setExchangeRate,
           setSellTransactions,
         })
+        if (isStale()) {
+          return
+        }
         setStatusKey('updated')
       } else {
-        await apiClient.createTransaction(draft)
+        await apiClient.createTransaction(draft, session ?? undefined)
         await refreshAndApplyTransactions({
           client: apiClient,
+          isCancelled: isStale,
+          session: session ?? undefined,
           setBuyTransactions,
           setExchangeRate,
           setSellTransactions,
         })
+        if (isStale()) {
+          return
+        }
         setStatusKey('saved')
       }
 
       setEditingTransaction(null)
       setResetSignal((value) => value + 1)
     } catch (error) {
-      setErrorMessage(toErrorMessage(error))
+      if (!isStale()) {
+        setErrorMessage(toErrorMessage(error))
+      }
     } finally {
       setIsSubmitting(false)
     }
   }
 
   async function handleDelete(id: string) {
+    const accountGeneration = accountGenerationRef.current
+    const isStale = () => accountGeneration !== accountGenerationRef.current
     setErrorMessage(null)
     const isDeletingEditingTransaction = editingTransaction?.id === id
 
     try {
-      await apiClient.deleteTransaction(id)
+      await apiClient.deleteTransaction(id, session ?? undefined)
       await refreshAndApplyTransactions({
         client: apiClient,
+        isCancelled: isStale,
+        session: session ?? undefined,
         setBuyTransactions,
         setExchangeRate,
         setSellTransactions,
       })
+      if (isStale()) {
+        return
+      }
       if (isDeletingEditingTransaction) {
         setEditingTransaction(null)
         setResetSignal((value) => value + 1)
       }
       setStatusKey('deleted')
     } catch (error) {
-      setErrorMessage(toErrorMessage(error))
+      if (!isStale()) {
+        setErrorMessage(toErrorMessage(error))
+      }
     }
   }
 
@@ -183,10 +217,15 @@ export function App({
     nextSession: AuthSession,
     nextStatusKey: 'upgraded' | 'signedIn',
   ) {
+    const accountGeneration = accountGenerationRef.current + 1
+    accountGenerationRef.current = accountGeneration
+    const isStale = () => accountGeneration !== accountGenerationRef.current
     setSession(nextSession)
     setBuyTransactions([])
     setSellTransactions([])
     setExchangeRate(null)
+    setEditingTransaction(null)
+    setResetSignal((value) => value + 1)
     setIsLoading(true)
     setBootstrapErrorMessage(null)
     setErrorMessage(null)
@@ -195,18 +234,27 @@ export function App({
     try {
       await refreshAndApplyTransactions({
         client: apiClient,
+        isCancelled: isStale,
+        session: nextSession,
         setBuyTransactions,
         setExchangeRate,
         setSellTransactions,
       })
+      if (isStale()) {
+        return
+      }
       setIsUpgradeOpen(false)
       setIsSignInOpen(false)
       setStatusKey(nextStatusKey)
     } catch (error) {
-      setBootstrapErrorMessage(toErrorMessage(error))
-      setStatusKey('unavailable')
+      if (!isStale()) {
+        setBootstrapErrorMessage(toErrorMessage(error))
+        setStatusKey('unavailable')
+      }
     } finally {
-      setIsLoading(false)
+      if (!isStale()) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -239,10 +287,13 @@ export function App({
         throw result.error
       }
 
+      accountGenerationRef.current += 1
       setSession(null)
       setBuyTransactions([])
       setSellTransactions([])
       setExchangeRate(null)
+      setEditingTransaction(null)
+      setResetSignal((value) => value + 1)
       setIsUpgradeOpen(false)
       setIsSignInOpen(false)
       setBootstrapErrorMessage(null)
@@ -356,6 +407,10 @@ export function App({
               authClient={authClient}
               language={language}
               onClose={() => setIsUpgradeOpen(false)}
+              onSignIn={() => {
+                setIsUpgradeOpen(false)
+                setIsSignInOpen(true)
+              }}
               onUpgraded={handleUpgraded}
             />
           ) : null}
@@ -373,7 +428,7 @@ export function App({
           <TransactionForm
             defaultCurrency={defaultCurrency}
             editingTransaction={editingTransaction}
-            getExchangeRate={apiClient.getExchangeRate}
+            getExchangeRate={getExchangeRate}
             isSubmitting={isSubmitting}
             language={language}
             onClearEdit={handleClearEdit}
@@ -448,12 +503,13 @@ type RefreshedTransactions = {
 
 async function refreshTransactions(
   client: ApiClient,
+  session?: AuthSession,
 ): Promise<RefreshedTransactions> {
   const [buy, sell, rateResult] = await Promise.all([
-    client.listTransactions('BUY'),
-    client.listTransactions('SELL'),
+    client.listTransactions('BUY', session),
+    client.listTransactions('SELL', session),
     client
-      .getExchangeRate()
+      .getExchangeRate(session)
       .then((rate) => ({ rate, ok: true as const }))
       .catch(() => ({ ok: false as const })),
   ])
@@ -483,20 +539,26 @@ function getDefaultTheme(): Theme {
 
 async function refreshAndApplyTransactions({
   client,
+  session,
   setBuyTransactions,
   setExchangeRate,
   setSellTransactions,
   isCancelled = () => false,
 }: {
   client: ApiClient
+  session?: AuthSession
   setBuyTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>
   setExchangeRate: React.Dispatch<React.SetStateAction<ExchangeRate | null>>
   setSellTransactions: React.Dispatch<React.SetStateAction<TransactionRecord[]>>
   isCancelled?: () => boolean
 }) {
+  if (isCancelled()) {
+    return
+  }
+
   setExchangeRate(null)
 
-  const ledgerData = await refreshTransactions(client)
+  const ledgerData = await refreshTransactions(client, session)
   if (isCancelled()) {
     return
   }

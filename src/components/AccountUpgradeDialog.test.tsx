@@ -72,17 +72,21 @@ describe('AccountUpgradeDialog', () => {
 
   it('shows an existing-email conflict without changing the session', async () => {
     const user = userEvent.setup()
+    const onSignIn = vi.fn()
 
     render(
       <AccountUpgradeDialog
         authClient={{
           getSession: vi.fn(),
           updateUser: vi.fn().mockResolvedValue({
-            error: new Error('This email is already registered.'),
+            error: Object.assign(new Error('Email cannot be used.'), {
+              code: 'email_exists',
+            }),
           }),
           signInWithPassword: vi.fn(),
           signOut: vi.fn(),
         }}
+        onSignIn={onSignIn}
         onUpgraded={vi.fn()}
       />,
     )
@@ -91,7 +95,9 @@ describe('AccountUpgradeDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Send verification email' }))
 
     expect(
-      screen.getByText('This email is already registered. Try another email address.'),
+      screen.getByText('This email is already registered. Please sign in instead.'),
     ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(onSignIn).toHaveBeenCalledTimes(1)
   })
 })
