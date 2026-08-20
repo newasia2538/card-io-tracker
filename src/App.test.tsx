@@ -120,6 +120,23 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'เพิ่มธุรกรรม' })).toBeInTheDocument()
   })
 
+  it('shows the approved WebP icon in the app header', async () => {
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+
+    const icon = screen.getByRole('img', { name: 'CardIO app icon' })
+    expect(icon).toHaveAttribute('src', '/icon.webp')
+    expect(icon.closest('.app-hero')).not.toBeNull()
+  })
+
   it('places the open Upgrade account panel before the transaction form', async () => {
     const user = userEvent.setup()
 

@@ -191,10 +191,20 @@ export function App({
   return (
     <main className="app-shell" data-language={language} data-theme={theme}>
       <section className="app-hero">
-        <div>
-          <p className="eyebrow">{translations.heroEyebrow}</p>
-          <h1>{translations.brandName}</h1>
-          <p className="hero-copy">{translations.brandDescription}</p>
+        <div className="app-hero__brand">
+          <img
+            alt="CardIO app icon"
+            className="app-hero__icon"
+            decoding="async"
+            height="72"
+            src="/icon.webp"
+            width="72"
+          />
+          <div>
+            <p className="eyebrow">{translations.heroEyebrow}</p>
+            <h1>{translations.brandName}</h1>
+            <p className="hero-copy">{translations.brandDescription}</p>
+          </div>
         </div>
 
         <div className="app-hero__side">

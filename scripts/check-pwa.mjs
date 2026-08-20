@@ -36,10 +36,10 @@ assert(
 assert(
   hasTagWithAttributes(indexHtml, 'link', {
     rel: 'icon',
-    href: '/icon.svg',
-    type: 'image/svg+xml',
+    href: '/icon.webp',
+    type: 'image/webp',
   }),
-  'dist/index.html must expose the SVG icon metadata',
+  'dist/index.html must expose the WebP icon metadata',
 )
 
 assert(manifest.display === 'standalone', 'manifest display must be "standalone"')
@@ -67,6 +67,8 @@ for (const [index, icon] of manifest.icons.entries()) {
   assert(typeof icon.src === 'string' && icon.src.length > 0, `manifest icon ${index} must declare src`)
   assert(typeof icon.sizes === 'string' && icon.sizes.length > 0, `manifest icon ${index} must declare sizes`)
   assert(typeof icon.type === 'string' && icon.type.length > 0, `manifest icon ${index} must declare type`)
+  assert(icon.src.endsWith('.webp'), `manifest icon ${index} must use a WebP asset`)
+  assert(icon.type === 'image/webp', `manifest icon ${index} must declare type="image/webp"`)
 
   const iconPath = resolveLocalAssetPath(icon.src)
   assert(
