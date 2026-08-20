@@ -9,6 +9,7 @@ describe('AccountUpgradeDialog', () => {
   const upgradedSession: AuthSession = {
     accessToken: 'verified-token',
     userId: 'user-123',
+    email: 'collector@example.com',
     isAnonymous: false,
   }
 
@@ -29,6 +30,7 @@ describe('AccountUpgradeDialog', () => {
                 access_token: upgradedSession.accessToken,
                 user: {
                   id: upgradedSession.userId,
+                  email: upgradedSession.email,
                   is_anonymous: false,
                 },
               },
@@ -36,6 +38,8 @@ describe('AccountUpgradeDialog', () => {
             error: null,
           }),
           updateUser,
+          signInWithPassword: vi.fn(),
+          signOut: vi.fn(),
         }}
         onUpgraded={onUpgraded}
       />,
@@ -76,6 +80,8 @@ describe('AccountUpgradeDialog', () => {
           updateUser: vi.fn().mockResolvedValue({
             error: new Error('This email is already registered.'),
           }),
+          signInWithPassword: vi.fn(),
+          signOut: vi.fn(),
         }}
         onUpgraded={vi.fn()}
       />,

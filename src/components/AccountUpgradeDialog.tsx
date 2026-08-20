@@ -1,27 +1,14 @@
 import { useState } from 'react'
 
+import {
+  toAuthSession,
+  type AccountAuthClient,
+  type SessionLike,
+} from '../lib/auth'
 import { getTranslations } from '../lib/i18n'
 import type { AuthSession, Language } from '../types'
 
-type SessionLike = {
-  access_token?: string
-  user?: {
-    id?: string
-    is_anonymous?: boolean
-  } | null
-}
-
-export interface AccountUpgradeAuthClient {
-  getSession: () => Promise<{
-    data: {
-      session: SessionLike | null
-    }
-    error: Error | null
-  }>
-  updateUser: (attributes: { email?: string; password?: string }) => Promise<{
-    error: Error | null
-  }>
-}
+export type AccountUpgradeAuthClient = AccountAuthClient
 
 export interface AccountUpgradeDialogProps {
   authClient: AccountUpgradeAuthClient
@@ -193,18 +180,6 @@ export function AccountUpgradeDialog({
       {error ? <p role="alert">{error}</p> : null}
     </section>
   )
-}
-
-function toAuthSession(session: SessionLike | null): AuthSession | null {
-  if (!session?.access_token || !session.user?.id) {
-    return null
-  }
-
-  return {
-    accessToken: session.access_token,
-    userId: session.user.id,
-    isAnonymous: session.user.is_anonymous ?? false,
-  }
 }
 
 type UpgradeMessageKey = 'verificationSent' | 'verificationPending' | 'emailVerified'
