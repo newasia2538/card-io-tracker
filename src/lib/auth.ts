@@ -35,7 +35,8 @@ export interface AccountAuthClient {
 }
 
 export interface SupabaseAuthClientLike {
-  auth: AccountAuthClient & {
+  auth: {
+    getSession: () => Promise<AuthResponseLike>
     signInAnonymously: () => Promise<AuthResponseLike>
   }
 }
