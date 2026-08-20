@@ -12,7 +12,7 @@ CardIO is a responsive React and Vite PWA backed by a small Go API. It records c
 - All transactions shown by default, sorted newest first, with BUY and SELL filters.
 - Add, edit, and delete transaction records.
 - THB and USD input with server-side exchange-rate lookup through Frankfurter.
-- Anonymous Supabase sessions for first-use access, with an optional account upgrade flow.
+- Anonymous Supabase sessions for first-use access, with optional email/password account upgrade and sign-in.
 - Supabase GraphQL access protected by PostgreSQL row-level security.
 - Installable PWA with a same-origin app shell cache.
 
@@ -27,7 +27,7 @@ CardIO is a responsive React and Vite PWA backed by a small Go API. It records c
 
 - Node.js and npm
 - Go 1.25.1 or newer compatible with `api/go.mod`
-- A Supabase project with anonymous sign-ins enabled
+- A Supabase project with anonymous sign-ins and email/password authentication enabled
 - The Supabase `pg_graphql` extension enabled
 
 ## Project structure
@@ -70,8 +70,10 @@ Use the Supabase publishable key on both sides. Never put a Supabase service-rol
 ## Supabase setup
 
 1. Enable anonymous sign-ins in Supabase Auth.
-2. Enable `pg_graphql` for the project.
-3. Apply the migration in `supabase/migrations/20260816210517_create_transactions.sql`.
+2. Enable the email provider and email/password signups. Enable manual identity linking so anonymous users can upgrade without changing their user ID.
+3. Configure email confirmations and the email delivery provider for the active environment. Local Supabase development captures messages in Mailpit.
+4. Enable `pg_graphql` for the project.
+5. Apply the migration in `supabase/migrations/20260816210517_create_transactions.sql`.
 
    With the Supabase CLI:
 
@@ -81,8 +83,8 @@ Use the Supabase publishable key on both sides. Never put a Supabase service-rol
 
    With the hosted dashboard, paste the migration into the SQL editor and run it.
 
-4. Keep the transaction RLS policies enabled. They scope reads and writes to `auth.uid()`.
-5. For account upgrades, add both local development URLs to Supabase Auth redirect URLs:
+6. Keep the transaction RLS policies enabled. They scope reads and writes to `auth.uid()`.
+7. For account upgrades, add both local development URLs to Supabase Auth redirect URLs:
    - `http://localhost:5173`
    - `http://127.0.0.1:5173`
 
@@ -113,18 +115,29 @@ After the app loads:
 5. Select BUY and SELL to filter the transaction table.
 6. Add a transaction, edit it, and delete it.
 7. Refresh the page and confirm the saved transaction remains available.
-8. Open `Upgrade account` only when you have configured Supabase email authentication.
+8. Confirm anonymous users can use every ledger feature without registering.
+9. Open `Create account` only when you have configured Supabase email authentication. Verify the email, set a password, and confirm existing rows remain.
+10. Open `Sign in` in a second browser profile or device and confirm the registered account rows load.
+11. Create a row on the second device, reload the first device, and confirm it appears there.
+12. Sign out and confirm CardIO returns to anonymous mode without deleting the registered account rows.
+13. Try upgrading an anonymous session with an already registered email. Confirm the upgrade stops, suggests sign-in, and leaves anonymous rows unchanged.
 
 ## Account upgrade flow
 
 CardIO starts with an anonymous Supabase session. That session owns the initial transaction rows. To preserve those rows while adding a login:
 
-1. Open `Upgrade account`.
+1. Open `Create account`.
 2. Submit an email address and complete the verification email.
 3. Return to the app and choose `I've verified my email`.
 4. Set the account password.
 
 The upgrade should keep the same Supabase user ID, so existing anonymous rows remain attached to the account.
+
+## Sign-in flow
+
+On another device, open `Sign in` and enter the registered email and password. CardIO receives the registered Supabase session, sends its bearer token to the existing API, and reloads rows allowed by the current `auth.uid()` RLS policies.
+
+If the current device has anonymous rows, CardIO warns that those rows remain with the anonymous session. CardIO does not automatically merge rows into an already registered account. Password reset and recovery are not included in this release.
 
 ## PWA and network behavior
 

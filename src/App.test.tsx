@@ -294,6 +294,7 @@ describe('App', () => {
     expect(screen.getByRole('main')).toHaveAttribute('data-language', 'th')
     expect(document.documentElement.lang).toBe('th')
     expect(screen.getByRole('heading', { name: 'เพิ่มธุรกรรม' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'สร้างบัญชี' })).toBeInTheDocument()
   })
 
   it('shows the approved WebP icon in the app header', async () => {

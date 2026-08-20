@@ -36,4 +36,10 @@ describe('responsive layout styles', () => {
       /@media \(max-width: 560px\)[\s\S]*?\.transaction-table tbody tr:last-child td:last-child\s*\{[^}]*border-bottom: 0/,
     )
   })
+
+  it('keeps account identity and sign-in panel inside narrow screens', () => {
+    expect(styleBlock('\\.account-email')).toContain('max-width')
+    expect(styleBlock('\\.account-email')).toContain('text-overflow: ellipsis')
+    expect(styleBlock('\\.sign-in-panel')).toContain('min-width: 0')
+  })
 })

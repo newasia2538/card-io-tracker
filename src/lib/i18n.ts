@@ -18,6 +18,18 @@ export interface Translations {
   transactionUpdated: string
   transactionDeleted: string
   retryLoadingLedger: string
+  createAccount: string
+  signIn: string
+  signInTitle: string
+  signInButton: string
+  signInWarning: string
+  continueToSignIn: string
+  signedIn: string
+  signOut: string
+  signedOut: string
+  signInError: string
+  signOutError: string
+  accountEmail: string
   upgradeAccount: string
   accountUpgraded: string
   unableToUpgrade: string
@@ -96,6 +108,18 @@ const english: Translations = {
   transactionUpdated: 'Transaction updated.',
   transactionDeleted: 'Transaction deleted.',
   retryLoadingLedger: 'Retry loading ledger',
+  createAccount: 'Create account',
+  signIn: 'Sign in',
+  signInTitle: 'Sign in',
+  signInButton: 'SIGN IN',
+  signInWarning: 'Your current anonymous records stay in that anonymous account after sign-in.',
+  continueToSignIn: 'Continue to sign in',
+  signedIn: 'Signed in.',
+  signOut: 'Sign out',
+  signedOut: 'Signed out.',
+  signInError: 'Unable to sign in.',
+  signOutError: 'Unable to sign out.',
+  accountEmail: 'Account',
   upgradeAccount: 'Upgrade account',
   accountUpgraded: 'Account upgraded.',
   unableToUpgrade: 'Unable to upgrade your account.',
@@ -174,6 +198,18 @@ const thai: Translations = {
   transactionUpdated: 'อัปเดตธุรกรรมแล้ว',
   transactionDeleted: 'ลบธุรกรรมแล้ว',
   retryLoadingLedger: 'ลองโหลดบัญชีอีกครั้ง',
+  createAccount: 'สร้างบัญชี',
+  signIn: 'เข้าสู่ระบบ',
+  signInTitle: 'เข้าสู่ระบบ',
+  signInButton: 'เข้าสู่ระบบ',
+  signInWarning: 'รายการที่บันทึกแบบไม่ระบุตัวตนจะยังอยู่ในบัญชีไม่ระบุตัวตนนั้นหลังเข้าสู่ระบบ',
+  continueToSignIn: 'เข้าสู่ระบบต่อ',
+  signedIn: 'เข้าสู่ระบบแล้ว',
+  signOut: 'ออกจากระบบ',
+  signedOut: 'ออกจากระบบแล้ว',
+  signInError: 'ไม่สามารถเข้าสู่ระบบได้',
+  signOutError: 'ไม่สามารถออกจากระบบได้',
+  accountEmail: 'บัญชี',
   upgradeAccount: 'อัปเกรดบัญชี',
   accountUpgraded: 'อัปเกรดบัญชีแล้ว',
   unableToUpgrade: 'ไม่สามารถอัปเกรดบัญชีได้',
