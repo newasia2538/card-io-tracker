@@ -1,6 +1,43 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { ensureAuthSession } from './auth'
+import { ensureAuthSession, toAuthSession } from './auth'
+
+describe('toAuthSession', () => {
+  it('maps registered Supabase sessions with their email', () => {
+    expect(
+      toAuthSession({
+        access_token: 'registered-token',
+        user: {
+          id: 'user-123',
+          email: 'collector@example.com',
+          is_anonymous: false,
+        },
+      }),
+    ).toEqual({
+      accessToken: 'registered-token',
+      userId: 'user-123',
+      email: 'collector@example.com',
+      isAnonymous: false,
+    })
+  })
+
+  it('maps anonymous sessions without an email to null', () => {
+    expect(
+      toAuthSession({
+        access_token: 'anonymous-token',
+        user: {
+          id: 'anonymous-user',
+          is_anonymous: true,
+        },
+      }),
+    ).toEqual({
+      accessToken: 'anonymous-token',
+      userId: 'anonymous-user',
+      email: null,
+      isAnonymous: true,
+    })
+  })
+})
 
 describe('ensureAuthSession', () => {
   it('reuses an existing Supabase session', async () => {
@@ -28,6 +65,7 @@ describe('ensureAuthSession', () => {
     ).resolves.toEqual({
       accessToken: 'existing-token',
       userId: 'user-123',
+      email: null,
       isAnonymous: true,
     })
 
@@ -61,6 +99,7 @@ describe('ensureAuthSession', () => {
     ).resolves.toEqual({
       accessToken: 'new-token',
       userId: 'user-456',
+      email: null,
       isAnonymous: true,
     })
 
@@ -104,6 +143,7 @@ describe('ensureAuthSession', () => {
     expect(first).toEqual({
       accessToken: 'shared-token',
       userId: 'user-789',
+      email: null,
       isAnonymous: true,
     })
     expect(second).toEqual(first)
@@ -167,6 +207,7 @@ describe('ensureAuthSession', () => {
     expect(first).toEqual({
       accessToken: 'shared-token',
       userId: 'user-serial',
+      email: null,
       isAnonymous: true,
     })
     expect(second).toEqual(first)
@@ -204,6 +245,7 @@ describe('ensureAuthSession', () => {
     await expect(ensureAuthSession(client)).resolves.toEqual({
       accessToken: 'retry-token',
       userId: 'user-retry',
+      email: null,
       isAnonymous: true,
     })
 

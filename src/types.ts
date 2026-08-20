@@ -13,6 +13,7 @@ export type ProfitLossStatus = 'profit' | 'loss' | 'neutral'
 export interface AuthSession {
   accessToken: string
   userId: string
+  email: string | null
   isAnonymous: boolean
 }
 
