@@ -61,11 +61,11 @@ export class ApiError extends Error {
 }
 
 export interface ApiClient {
-  listTransactions(action?: TransactionAction): Promise<TransactionRecord[]>
-  createTransaction(draft: TransactionDraft): Promise<TransactionRecord>
-  updateTransaction(id: string, draft: TransactionDraft): Promise<TransactionRecord>
-  deleteTransaction(id: string): Promise<void>
-  getExchangeRate(): Promise<ExchangeRate>
+  listTransactions(action?: TransactionAction, authSession?: AuthSession): Promise<TransactionRecord[]>
+  createTransaction(draft: TransactionDraft, authSession?: AuthSession): Promise<TransactionRecord>
+  updateTransaction(id: string, draft: TransactionDraft, authSession?: AuthSession): Promise<TransactionRecord>
+  deleteTransaction(id: string, authSession?: AuthSession): Promise<void>
+  getExchangeRate(authSession?: AuthSession): Promise<ExchangeRate>
 }
 
 export function createApiClient({
@@ -76,21 +76,23 @@ export function createApiClient({
   getAuthSession?: () => Promise<AuthSession>
 } = {}): ApiClient {
   return {
-    async listTransactions(action) {
+    async listTransactions(action, authSession) {
       const search = action ? `?action=${encodeURIComponent(action)}` : ''
       const payload = await requestJSON<{ transactions: ApiTransaction[] }>({
         fetchImpl,
         getAuthSession,
+        authSession,
         path: `/api/transactions${search}`,
         method: 'GET',
       })
       return payload.transactions.map(mapTransaction)
     },
 
-    async createTransaction(draft) {
+    async createTransaction(draft, authSession) {
       const payload = await requestJSON<{ transaction: ApiTransaction }>({
         fetchImpl,
         getAuthSession,
+        authSession,
         path: '/api/transactions',
         method: 'POST',
         body: serializeDraft(draft),
@@ -98,10 +100,11 @@ export function createApiClient({
       return mapTransaction(payload.transaction)
     },
 
-    async updateTransaction(id, draft) {
+    async updateTransaction(id, draft, authSession) {
       const payload = await requestJSON<{ transaction: ApiTransaction }>({
         fetchImpl,
         getAuthSession,
+        authSession,
         path: `/api/transactions/${encodeURIComponent(id)}`,
         method: 'PATCH',
         body: serializeDraft(draft),
@@ -109,19 +112,21 @@ export function createApiClient({
       return mapTransaction(payload.transaction)
     },
 
-    async deleteTransaction(id) {
+    async deleteTransaction(id, authSession) {
       await requestJSON<void>({
         fetchImpl,
         getAuthSession,
+        authSession,
         path: `/api/transactions/${encodeURIComponent(id)}`,
         method: 'DELETE',
       })
     },
 
-    async getExchangeRate() {
+    async getExchangeRate(authSession) {
       const payload = await requestJSON<ApiExchangeRate>({
         fetchImpl,
         getAuthSession,
+        authSession,
         path: '/api/exchange-rate?from=USD&to=THB',
         method: 'GET',
       })
@@ -141,17 +146,19 @@ export const apiClient = createApiClient()
 async function requestJSON<T>({
   fetchImpl,
   getAuthSession,
+  authSession,
   path,
   method,
   body,
 }: {
   fetchImpl: FetchLike
   getAuthSession: () => Promise<AuthSession>
+  authSession?: AuthSession
   path: string
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   body?: RequestBody
 }): Promise<T> {
-  const session = await getAuthSession()
+  const session = authSession ?? (await getAuthSession())
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${session.accessToken}`,

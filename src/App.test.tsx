@@ -9,12 +9,14 @@ import type { AuthSession, ExchangeRate, TransactionRecord } from './types'
 const anonymousSession: AuthSession = {
   accessToken: 'jwt-token',
   userId: 'user-1',
+  email: null,
   isAnonymous: true,
 }
 
 const authenticatedSession: AuthSession = {
   accessToken: 'jwt-token',
   userId: 'user-1',
+  email: 'collector@example.com',
   isAnonymous: false,
 }
 
@@ -83,9 +85,297 @@ describe('App', () => {
     expect(authLoader.mock.invocationCallOrder[0]).toBeLessThan(
       (apiClient.listTransactions as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
     )
-    expect(apiClient.listTransactions).toHaveBeenCalledWith('BUY')
-    expect(apiClient.listTransactions).toHaveBeenCalledWith('SELL')
-    expect(screen.getByRole('button', { name: 'Upgrade account' })).toBeInTheDocument()
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('BUY', expect.any(Object))
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('SELL', expect.any(Object))
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
+  })
+
+  it('shows account actions for anonymous and registered sessions', async () => {
+    const anonymousView = render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
+
+    anonymousView.unmount()
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(authenticatedSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    expect(screen.getByText('collector@example.com')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
+  })
+
+  it('signs in and reloads transactions for the registered account', async () => {
+    const user = userEvent.setup()
+    let loadCount = 0
+    const listTransactions = vi.fn(async (action?: 'BUY' | 'SELL') => {
+      loadCount += 1
+      if (loadCount <= 2) {
+        return []
+      }
+
+      return action === 'BUY' ? buyTransactions : sellTransactions
+    })
+    const signInWithPassword = vi.fn().mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'registered-token',
+          user: {
+            id: authenticatedSession.userId,
+            email: authenticatedSession.email,
+            is_anonymous: false,
+          },
+        },
+      },
+      error: null,
+    })
+
+    render(
+      <App
+        apiClient={createApiClientDouble({ listTransactions })}
+        authClient={{
+          ...createAuthClientDouble(),
+          signInWithPassword,
+        }}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    await user.type(screen.getByLabelText('Email'), 'collector@example.com')
+    await user.type(screen.getByLabelText('Password'), 'new-password-123')
+    await user.click(screen.getByRole('button', { name: 'SIGN IN' }))
+
+    await waitFor(() => {
+      expect(signInWithPassword).toHaveBeenCalledWith({
+        email: 'collector@example.com',
+        password: 'new-password-123',
+      })
+      expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+      expect(screen.getByRole('row', { name: /2026-08-17 Sport card/ })).toBeInTheDocument()
+    })
+
+    expect(listTransactions).toHaveBeenCalledTimes(4)
+  })
+
+  it('keeps anonymous rows and controls when sign-in fails', async () => {
+    const user = userEvent.setup()
+    const signInWithPassword = vi.fn().mockResolvedValue({
+      data: { session: null },
+      error: new Error('Invalid login credentials'),
+    })
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={{
+          ...createAuthClientDouble(),
+          signInWithPassword,
+        }}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    await user.click(screen.getByRole('button', { name: 'Continue to sign in' }))
+    await user.type(screen.getByLabelText('Email'), 'collector@example.com')
+    await user.type(screen.getByLabelText('Password'), 'wrong-password')
+    await user.click(screen.getByRole('button', { name: 'SIGN IN' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid login credentials')
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /2026-08-17 Sport card/ })).toBeInTheDocument()
+  })
+
+  it('warns before sign-in can replace an anonymous session with rows', async () => {
+    const user = userEvent.setup()
+    const signInWithPassword = vi.fn()
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={{
+          ...createAuthClientDouble(),
+          signInWithPassword,
+        }}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(
+      screen.getByText(
+        'Your current anonymous records stay in that anonymous account after sign-in.',
+      ),
+    ).toBeInTheDocument()
+    expect(signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('signs out and returns to a fresh anonymous session', async () => {
+    const user = userEvent.setup()
+    const authLoader = vi
+      .fn()
+      .mockResolvedValueOnce(authenticatedSession)
+      .mockResolvedValueOnce(anonymousSession)
+    const signOut = vi.fn().mockResolvedValue({ error: null })
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={{
+          ...createAuthClientDouble(),
+          signOut,
+        }}
+        authLoader={authLoader}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+
+    await waitFor(() => {
+      expect(signOut).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
+    })
+    expect(authLoader).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not apply rows from the previous account after sign-out starts a fresh session', async () => {
+    const user = userEvent.setup()
+    const registeredBuy = createDeferred<TransactionRecord[]>()
+    const registeredSell = createDeferred<TransactionRecord[]>()
+    const registeredRate = createDeferred<ExchangeRate>()
+    let accountPhase: 'anonymous' | 'registered' = 'anonymous'
+    const listTransactions = vi.fn().mockImplementation((action?: 'BUY' | 'SELL') => {
+      if (accountPhase === 'anonymous') {
+        return Promise.resolve([])
+      }
+
+      return action === 'BUY' ? registeredBuy.promise : registeredSell.promise
+    })
+    const getExchangeRate = vi.fn().mockImplementation(() => {
+      if (accountPhase === 'anonymous') {
+        return Promise.resolve(exchangeRate)
+      }
+
+      return registeredRate.promise
+    })
+    const authLoader = vi
+      .fn()
+      .mockResolvedValueOnce(anonymousSession)
+      .mockResolvedValueOnce(anonymousSession)
+    const signInWithPassword = vi.fn().mockImplementation(() => {
+      accountPhase = 'registered'
+      return Promise.resolve({
+        data: {
+          session: {
+            access_token: authenticatedSession.accessToken,
+            user: {
+              id: authenticatedSession.userId,
+              email: authenticatedSession.email,
+              is_anonymous: false,
+            },
+          },
+        },
+        error: null,
+      })
+    })
+    const signOut = vi.fn().mockImplementation(() => {
+      accountPhase = 'anonymous'
+      return Promise.resolve({ error: null })
+    })
+
+    render(
+      <App
+        apiClient={createApiClientDouble({ listTransactions, getExchangeRate })}
+        authClient={{
+          ...createAuthClientDouble(),
+          signInWithPassword,
+          signOut,
+        }}
+        authLoader={authLoader}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('button', { name: 'Create account' })
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    await user.type(screen.getByLabelText('Email'), 'collector@example.com')
+    await user.type(screen.getByLabelText('Password'), 'new-password-123')
+    await user.click(screen.getByRole('button', { name: 'SIGN IN' }))
+    await screen.findByRole('button', { name: 'Sign out' })
+    await waitFor(() => {
+      expect(listTransactions).toHaveBeenCalledTimes(4)
+    })
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+
+    await waitFor(() => {
+      expect(authLoader).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
+    })
+
+    registeredBuy.resolve(buyTransactions)
+    registeredSell.resolve(sellTransactions)
+    registeredRate.resolve(exchangeRate)
+
+    await waitFor(() => {
+      expect(screen.queryByRole('row', { name: /Sport card/ })).not.toBeInTheDocument()
+    })
+  })
+
+  it('clears active edit state when sign-out succeeds', async () => {
+    const user = userEvent.setup()
+    const authLoader = vi
+      .fn()
+      .mockResolvedValueOnce(authenticatedSession)
+      .mockResolvedValueOnce(anonymousSession)
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={{
+          ...createAuthClientDouble(),
+          signOut: vi.fn().mockResolvedValue({ error: null }),
+        }}
+        authLoader={authLoader}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('button', { name: 'Sign out' })
+    await user.click(screen.getByRole('button', { name: 'Edit Sport card' }))
+    expect(screen.getByLabelText('Price')).toHaveValue('1000')
+
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Price')).toHaveValue('')
+    })
   })
 
   it('shows CardIO branding and lets users switch day/night and language', async () => {
@@ -118,6 +408,7 @@ describe('App', () => {
     expect(screen.getByRole('main')).toHaveAttribute('data-language', 'th')
     expect(document.documentElement.lang).toBe('th')
     expect(screen.getByRole('heading', { name: 'เพิ่มธุรกรรม' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'สร้างบัญชี' })).toBeInTheDocument()
   })
 
   it('shows the approved WebP icon in the app header', async () => {
@@ -150,7 +441,7 @@ describe('App', () => {
     )
 
     await screen.findByRole('heading', { name: 'CardIO' })
-    await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
 
     const upgradePanel = screen.getByRole('region', { name: 'Upgrade account' })
     const transactionForm = screen.getByRole('region', { name: 'Transaction form' })
@@ -255,7 +546,7 @@ describe('App', () => {
         price: '120',
         currency: 'USD',
         transactionDate: '2026-08-17',
-      })
+      }, expect.any(Object))
     })
 
     expect(screen.getByRole('button', { name: 'Sell (2)' })).toHaveAttribute('aria-pressed', 'true')
@@ -301,7 +592,7 @@ describe('App', () => {
         price: '125',
         currency: 'USD',
         transactionDate: '2026-08-16',
-      })
+      }, expect.any(Object))
     })
 
     await user.click(screen.getByRole('button', { name: 'Delete Pokemon card' }))
@@ -311,7 +602,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Delete Pokemon card' }))
     await user.click(screen.getByRole('button', { name: 'Confirm delete' }))
     await waitFor(() => {
-      expect(apiClient.deleteTransaction).toHaveBeenCalledWith('sell-1')
+      expect(apiClient.deleteTransaction).toHaveBeenCalledWith('sell-1', expect.any(Object))
     })
   })
 
@@ -349,7 +640,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm delete' }))
 
     await waitFor(() => {
-      expect(apiClient.deleteTransaction).toHaveBeenCalledWith('sell-1')
+      expect(apiClient.deleteTransaction).toHaveBeenCalledWith('sell-1', expect.any(Object))
     })
 
     expect(screen.getByRole('button', { name: 'SAVE' })).toBeInTheDocument()
@@ -385,8 +676,8 @@ describe('App', () => {
       expect(authLoader).toHaveBeenCalledTimes(2)
     })
 
-    expect(apiClient.listTransactions).toHaveBeenCalledWith('BUY')
-    expect(apiClient.listTransactions).toHaveBeenCalledWith('SELL')
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('BUY', expect.any(Object))
+    expect(apiClient.listTransactions).toHaveBeenCalledWith('SELL', expect.any(Object))
     expect(screen.getByText('Ledger ready.')).toBeInTheDocument()
   })
 
@@ -420,8 +711,8 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Retry loading ledger' }))
 
     await waitFor(() => {
-      expect(listTransactions).toHaveBeenCalledWith('BUY')
-      expect(listTransactions).toHaveBeenCalledWith('SELL')
+      expect(listTransactions).toHaveBeenCalledWith('BUY', expect.any(Object))
+      expect(listTransactions).toHaveBeenCalledWith('SELL', expect.any(Object))
     })
 
     expect(screen.getByText('Ledger ready.')).toBeInTheDocument()
@@ -471,8 +762,8 @@ describe('App', () => {
     )
 
     await waitFor(() => {
-      expect(firstClient.listTransactions).toHaveBeenCalledWith('BUY')
-      expect(firstClient.listTransactions).toHaveBeenCalledWith('SELL')
+      expect(firstClient.listTransactions).toHaveBeenCalledWith('BUY', expect.any(Object))
+      expect(firstClient.listTransactions).toHaveBeenCalledWith('SELL', expect.any(Object))
     })
 
     rerender(
@@ -595,6 +886,8 @@ describe('App', () => {
         authClient={{
           getSession,
           updateUser,
+          signInWithPassword: vi.fn(),
+          signOut: vi.fn(),
         }}
         authLoader={vi.fn().mockResolvedValue(anonymousSession)}
         locale="th-TH"
@@ -603,7 +896,7 @@ describe('App', () => {
 
     await screen.findByRole('heading', { name: 'CardIO' })
 
-    await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
     await user.type(screen.getByLabelText('Email'), 'collector@example.com')
     await user.click(screen.getByRole('button', { name: 'Send verification email' }))
     await user.click(screen.getByRole('button', { name: "I've verified my email" }))
@@ -615,7 +908,7 @@ describe('App', () => {
     })
 
     expect(screen.queryByRole('region', { name: 'Upgrade account' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Upgrade account' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
   })
 
   it('shows an error and keeps the anonymous session when the upgraded session user id changes', async () => {
@@ -657,6 +950,8 @@ describe('App', () => {
         authClient={{
           getSession,
           updateUser,
+          signInWithPassword: vi.fn(),
+          signOut: vi.fn(),
         }}
         authLoader={vi.fn().mockResolvedValue(anonymousSession)}
         locale="th-TH"
@@ -665,7 +960,7 @@ describe('App', () => {
 
     await screen.findByRole('heading', { name: 'CardIO' })
 
-    await user.click(screen.getByRole('button', { name: 'Upgrade account' }))
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
     await user.type(screen.getByLabelText('Email'), 'collector@example.com')
     await user.click(screen.getByRole('button', { name: 'Send verification email' }))
     await user.click(screen.getByRole('button', { name: "I've verified my email" }))
@@ -679,7 +974,7 @@ describe('App', () => {
     })
 
     expect(screen.getByRole('heading', { name: 'Upgrade account' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Upgrade account' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
   })
 
   it('shows request failures through aria-live feedback and hides upgrade for non-anonymous users', async () => {
@@ -698,7 +993,7 @@ describe('App', () => {
     )
 
     await screen.findByRole('heading', { name: 'CardIO' })
-    expect(screen.queryByRole('button', { name: 'Upgrade account' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Price'), '2500')
     await user.click(screen.getByRole('button', { name: 'SAVE' }))
@@ -733,6 +1028,11 @@ function createAuthClientDouble() {
       error: null,
     }),
     updateUser: vi.fn().mockResolvedValue({ error: null }),
+    signInWithPassword: vi.fn().mockResolvedValue({
+      data: { session: null },
+      error: null,
+    }),
+    signOut: vi.fn().mockResolvedValue({ error: null }),
   }
 }
 

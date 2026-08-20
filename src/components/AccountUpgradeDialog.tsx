@@ -1,32 +1,20 @@
 import { useState } from 'react'
 
+import {
+  toAuthSession,
+  type AccountAuthClient,
+  type SessionLike,
+} from '../lib/auth'
 import { getTranslations } from '../lib/i18n'
 import type { AuthSession, Language } from '../types'
 
-type SessionLike = {
-  access_token?: string
-  user?: {
-    id?: string
-    is_anonymous?: boolean
-  } | null
-}
-
-export interface AccountUpgradeAuthClient {
-  getSession: () => Promise<{
-    data: {
-      session: SessionLike | null
-    }
-    error: Error | null
-  }>
-  updateUser: (attributes: { email?: string; password?: string }) => Promise<{
-    error: Error | null
-  }>
-}
+export type AccountUpgradeAuthClient = AccountAuthClient
 
 export interface AccountUpgradeDialogProps {
   authClient: AccountUpgradeAuthClient
   language?: Language
   onClose?: () => void
+  onSignIn?: () => void
   onUpgraded: (session: AuthSession) => void
 }
 
@@ -34,6 +22,7 @@ export function AccountUpgradeDialog({
   authClient,
   language = 'en',
   onClose,
+  onSignIn,
   onUpgraded,
 }: AccountUpgradeDialogProps) {
   const [phase, setPhase] = useState<'email' | 'pending' | 'password'>('email')
@@ -41,6 +30,7 @@ export function AccountUpgradeDialog({
   const [password, setPassword] = useState('')
   const [messageKey, setMessageKey] = useState<UpgradeMessageKey | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isEmailConflict, setIsEmailConflict] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const translations = getTranslations(language)
 
@@ -48,6 +38,7 @@ export function AccountUpgradeDialog({
     event.preventDefault()
     setIsSubmitting(true)
     setError(null)
+    setIsEmailConflict(false)
 
     try {
       const result = await authClient.updateUser({ email: email.trim() })
@@ -58,6 +49,7 @@ export function AccountUpgradeDialog({
       setPhase('pending')
       setMessageKey('verificationSent')
     } catch (nextError) {
+      setIsEmailConflict(isEmailConflictError(nextError))
       setError(toUpgradeErrorMessage(nextError, translations))
     } finally {
       setIsSubmitting(false)
@@ -191,20 +183,13 @@ export function AccountUpgradeDialog({
 
       {messageKey ? <p role="status">{translations[messageKey]}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
+      {error && isEmailConflict && onSignIn ? (
+        <button onClick={onSignIn} type="button">
+          {translations.signIn}
+        </button>
+      ) : null}
     </section>
   )
-}
-
-function toAuthSession(session: SessionLike | null): AuthSession | null {
-  if (!session?.access_token || !session.user?.id) {
-    return null
-  }
-
-  return {
-    accessToken: session.access_token,
-    userId: session.user.id,
-    isAnonymous: session.user.is_anonymous ?? false,
-  }
 }
 
 type UpgradeMessageKey = 'verificationSent' | 'verificationPending' | 'emailVerified'
@@ -213,13 +198,26 @@ function toUpgradeErrorMessage(
   error: unknown,
   translations: ReturnType<typeof getTranslations>,
 ): string {
-  if (error instanceof Error) {
-    if (error.message.toLowerCase().includes('already')) {
-      return translations.emailAlreadyRegistered
-    }
+  if (isEmailConflictError(error)) {
+    return translations.emailAlreadyRegistered
+  }
 
+  if (error instanceof Error) {
     return error.message
   }
 
   return translations.upgradeError
+}
+
+function isEmailConflictError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return error instanceof Error && /already|exists|registered/i.test(error.message)
+  }
+
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : ''
+  if (['email_exists', 'email_address_exists', 'user_already_exists'].includes(code)) {
+    return true
+  }
+
+  return error instanceof Error && /already|exists|registered/i.test(error.message)
 }

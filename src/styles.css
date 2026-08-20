@@ -204,6 +204,16 @@ select:focus-visible {
   color: var(--sell);
 }
 
+.account-email {
+  display: inline-block;
+  max-width: min(100%, 18rem);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-layout {
   display: grid;
   grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr);
@@ -481,6 +491,10 @@ select:focus-visible {
 
 .upgrade-panel {
   border-style: dashed;
+}
+
+.sign-in-panel {
+  min-width: 0;
 }
 
 button[disabled] {

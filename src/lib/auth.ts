@@ -2,27 +2,42 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 import type { AuthSession } from '../types'
 
-type SessionUserLike = {
+export type SessionUserLike = {
   id?: string
+  email?: string | null
   is_anonymous?: boolean
 }
 
-type SessionLike = {
+export type SessionLike = {
   access_token?: string
   user?: SessionUserLike | null
 }
 
-type AuthResultLike = {
+export type AuthResponseLike = {
   data: {
     session: SessionLike | null
   }
   error: Error | null
 }
 
+export interface AccountAuthClient {
+  getSession: () => Promise<AuthResponseLike>
+  updateUser: (attributes: { email?: string; password?: string }) => Promise<{
+    error: Error | null
+  }>
+  signInWithPassword: (credentials: {
+    email: string
+    password: string
+  }) => Promise<AuthResponseLike>
+  signOut: () => Promise<{
+    error: Error | null
+  }>
+}
+
 export interface SupabaseAuthClientLike {
   auth: {
-    getSession: () => Promise<AuthResultLike>
-    signInAnonymously: () => Promise<AuthResultLike>
+    getSession: () => Promise<AuthResponseLike>
+    signInAnonymously: () => Promise<AuthResponseLike>
   }
 }
 
@@ -96,7 +111,7 @@ export async function ensureAuthSession(
   return authSessionRequest
 }
 
-function toAuthSession(session: SessionLike | null): AuthSession | null {
+export function toAuthSession(session: SessionLike | null): AuthSession | null {
   if (!session?.access_token || !session.user?.id) {
     return null
   }
@@ -104,6 +119,7 @@ function toAuthSession(session: SessionLike | null): AuthSession | null {
   return {
     accessToken: session.access_token,
     userId: session.user.id,
+    email: session.user.email ?? null,
     isAnonymous: session.user.is_anonymous ?? false,
   }
 }

@@ -71,6 +71,35 @@ describe('createApiClient', () => {
     })
   })
 
+  it('uses the supplied account session instead of an in-flight bootstrap session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ transactions: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    const getAuthSession = vi.fn(() => new Promise<never>(() => {}))
+    const registeredSession = {
+      ...session,
+      accessToken: 'registered-token',
+      userId: 'registered-user',
+      email: 'collector@example.com',
+      isAnonymous: false,
+    }
+    const client = createApiClient({ fetch: fetchMock, getAuthSession })
+
+    await expect(client.listTransactions('BUY', registeredSession)).resolves.toEqual([])
+
+    expect(getAuthSession).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledWith('/api/transactions?action=BUY', {
+      body: undefined,
+      headers: {
+        Authorization: 'Bearer registered-token',
+      },
+      method: 'GET',
+    })
+  })
+
   it('serializes drafts for create and preserves original price fields only', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
