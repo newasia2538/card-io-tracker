@@ -58,7 +58,7 @@ func (a *SupabaseAuthenticator) Authenticate(ctx context.Context, token string) 
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusUnauthorized {
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
 		return User{}, ErrUnauthorized
 	}
 	if res.StatusCode != http.StatusOK {

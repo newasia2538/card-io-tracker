@@ -67,6 +67,22 @@ func TestAuthenticateMapsInvalidTokenToUnauthorized(t *testing.T) {
 	}
 }
 
+func TestAuthenticateMapsForbiddenInvalidTokenToUnauthorized(t *testing.T) {
+	t.Parallel()
+
+	client := &http.Client{
+		Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+			return jsonResponse(http.StatusForbidden, `{"code":403,"error_code":"bad_jwt"}`), nil
+		}),
+	}
+
+	clientAuth := NewSupabaseAuthenticator("https://supabase.example", "sb_publishable_test", client)
+	_, err := clientAuth.Authenticate(context.Background(), "malformed-token")
+	if !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("Authenticate() error = %v, want ErrUnauthorized", err)
+	}
+}
+
 func jsonResponse(status int, body string) *http.Response {
 	resp := &http.Response{
 		StatusCode: status,

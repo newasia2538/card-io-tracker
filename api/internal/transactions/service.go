@@ -16,6 +16,7 @@ const (
 	ErrorKindUnauthorized    ErrorKind = "unauthorized"
 	ErrorKindNotFound        ErrorKind = "not_found"
 	ErrorKindConflict        ErrorKind = "conflict"
+	ErrorKindPayloadTooLarge ErrorKind = "payload_too_large"
 	ErrorKindRateUnavailable ErrorKind = "rate_unavailable"
 	ErrorKindUpstream        ErrorKind = "upstream"
 )

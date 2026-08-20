@@ -1,7 +1,6 @@
 package transactions
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,6 +14,8 @@ type Handler struct {
 	authenticator auth.Authenticator
 	service       APIService
 }
+
+const maxJSONBodyBytes int64 = 64 * 1024
 
 func NewHandler(authenticator auth.Authenticator, service APIService) http.Handler {
 	handler := &Handler{
@@ -55,8 +56,8 @@ func (h *Handler) createTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input TransactionInput
-	if err := decodeJSONBody(r.Context(), r, &input); err != nil {
-		writeServiceError(w, &Error{Kind: ErrorKindValidation, Message: err.Error(), Err: err})
+	if err := decodeJSONBody(w, r, &input); err != nil {
+		writeServiceError(w, err)
 		return
 	}
 
@@ -78,8 +79,8 @@ func (h *Handler) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var input TransactionInput
-	if err := decodeJSONBody(r.Context(), r, &input); err != nil {
-		writeServiceError(w, &Error{Kind: ErrorKindValidation, Message: err.Error(), Err: err})
+	if err := decodeJSONBody(w, r, &input); err != nil {
+		writeServiceError(w, err)
 		return
 	}
 
@@ -142,23 +143,43 @@ func (h *Handler) authenticateRequest(w http.ResponseWriter, r *http.Request) (a
 	return user, token, true
 }
 
-func decodeJSONBody(ctx context.Context, r *http.Request, out any) error {
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, out any) error {
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-r.Context().Done():
+		return r.Context().Err()
 	default:
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodyBytes)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(out); err != nil {
-		return err
+		return mapJSONDecodeError(err)
 	}
 	var extra json.RawMessage
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		return errors.New("request body must contain a single JSON object")
+		if isRequestBodyTooLarge(err) {
+			return mapJSONDecodeError(err)
+		}
+		return &Error{
+			Kind:    ErrorKindValidation,
+			Message: "request body must contain a single JSON object",
+			Err:     errors.New("request body must contain a single JSON object"),
+		}
 	}
 	return nil
+}
+
+func mapJSONDecodeError(err error) error {
+	if isRequestBodyTooLarge(err) {
+		return &Error{Kind: ErrorKindPayloadTooLarge, Message: "request body too large", Err: err}
+	}
+	return &Error{Kind: ErrorKindValidation, Message: err.Error(), Err: err}
+}
+
+func isRequestBodyTooLarge(err error) bool {
+	var maxBytesError *http.MaxBytesError
+	return errors.As(err, &maxBytesError)
 }
 
 func bearerToken(header string) string {
@@ -181,6 +202,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 			writeError(w, http.StatusNotFound, "not_found", serviceErr.Error())
 		case ErrorKindConflict:
 			writeError(w, http.StatusConflict, "conflict", serviceErr.Error())
+		case ErrorKindPayloadTooLarge:
+			writeError(w, http.StatusRequestEntityTooLarge, "payload_too_large", serviceErr.Error())
 		case ErrorKindRateUnavailable:
 			writeError(w, http.StatusServiceUnavailable, "rate_unavailable", serviceErr.Error())
 		case ErrorKindUpstream:

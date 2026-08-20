@@ -110,6 +110,37 @@ func TestHandlerRejectsMissingBearerToken(t *testing.T) {
 	}
 }
 
+func TestHandlerRejectsOversizedJSONBody(t *testing.T) {
+	t.Parallel()
+
+	authenticator := &stubAuthenticator{user: auth.User{ID: "user-123"}}
+	service := &stubService{}
+	handler := NewHandler(authenticator, service)
+	body := `{"action":"BUY","card_type":"Others","custom_card_type":"` + strings.Repeat("x", 70*1024) + `","price":"100.00","currency":"THB","transaction_date":"2026-08-17"}`
+
+	req := httptest.NewRequest(http.MethodPost, "/api/transactions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer jwt-token")
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if res.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusRequestEntityTooLarge)
+	}
+	if service.createToken != "" {
+		t.Fatalf("service.createToken = %q, want empty string", service.createToken)
+	}
+
+	var response map[string]string
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response["code"] != "payload_too_large" {
+		t.Fatalf("body[code] = %q, want %q", response["code"], "payload_too_large")
+	}
+}
+
 func TestHandlerListsTransactionsForAuthenticatedUser(t *testing.T) {
 	t.Parallel()
 
