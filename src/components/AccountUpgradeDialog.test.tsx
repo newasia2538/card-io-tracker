@@ -52,7 +52,10 @@ describe('AccountUpgradeDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Send verification email' }))
 
     await waitFor(() => {
-      expect(updateUser).toHaveBeenCalledWith({ email: 'collector@example.com' })
+      expect(updateUser).toHaveBeenCalledWith(
+        { email: 'collector@example.com' },
+        { emailRedirectTo: `${window.location.origin}/?auth=magic-link` },
+      )
     })
 
     expect(

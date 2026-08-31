@@ -54,6 +54,8 @@ Set these frontend values in `.env`:
 ```dotenv
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+# Set this to the deployed frontend origin. Omit locally to use the current origin.
+VITE_SITE_URL=https://your-web-domain.example
 ```
 
 The Go API reads its own values from the process environment. Export them before starting the API:
@@ -85,9 +87,14 @@ Use the Supabase publishable key for browser-safe Auth/GraphQL calls. `SUPABASE_
    With the hosted dashboard, paste the migration into the SQL editor and run it.
 
 6. Keep the transaction RLS policies enabled. They scope reads and writes to `auth.uid()`.
-7. For account upgrades, add both local development URLs to Supabase Auth redirect URLs:
+7. Set Supabase Auth URL Configuration for the deployed frontend:
+   - Site URL: the same value as `VITE_SITE_URL`
+   - Redirect URL: `<VITE_SITE_URL>/?auth=magic-link`
+   - Redirect URL: `<VITE_SITE_URL>/?auth=recovery`
+8. For local account flows, add both local development URLs to Supabase Auth redirect URLs:
    - `http://localhost:5173`
    - `http://127.0.0.1:5173`
+9. If you customized Supabase Auth email templates, use `{{ .ConfirmationURL }}` for the magic-link and recovery link. Do not hard-code `http://localhost:3000` or `{{ .SiteURL }}` into those links.
 
 ## Run locally
 

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
 import {
+  getAuthRedirectUrl,
   toAuthSession,
   type AccountAuthClient,
 } from '../lib/auth'
@@ -78,7 +79,7 @@ export function AccountSignInDialog({
       }
 
       const result = await authClient.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/?auth=recovery`,
+        redirectTo: getAuthRedirectUrl('recovery'),
       })
       if (result.error) {
         throw result.error
@@ -106,7 +107,7 @@ export function AccountSignInDialog({
       const result = await authClient.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: `${window.location.origin}/?auth=magic-link`,
+          emailRedirectTo: getAuthRedirectUrl('magic-link'),
           shouldCreateUser: false,
         },
       })

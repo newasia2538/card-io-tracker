@@ -1,6 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { ensureAuthSession, toAuthSession } from './auth'
+import { ensureAuthSession, getAuthRedirectUrl, toAuthSession } from './auth'
+
+describe('getAuthRedirectUrl', () => {
+  it('uses the configured public site URL for auth callbacks', () => {
+    expect(
+      getAuthRedirectUrl('magic-link', {
+        env: { VITE_SITE_URL: 'https://cardio.example.com/' },
+        origin: 'http://localhost:5173',
+      }),
+    ).toBe('https://cardio.example.com/?auth=magic-link')
+  })
+
+  it('uses the current browser origin when no public site URL is configured', () => {
+    expect(
+      getAuthRedirectUrl('recovery', {
+        env: {},
+        origin: 'http://127.0.0.1:5173',
+      }),
+    ).toBe('http://127.0.0.1:5173/?auth=recovery')
+  })
+})
 
 describe('toAuthSession', () => {
   it('maps registered Supabase sessions with their email', () => {

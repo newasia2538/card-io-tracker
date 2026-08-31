@@ -24,9 +24,19 @@ export type AuthActionResponseLike = {
   error: Error | null
 }
 
+export type AuthRedirectFlow = 'recovery' | 'magic-link'
+
+export type AuthRedirectOptions = {
+  env?: Record<string, string | undefined>
+  origin?: string
+}
+
 export interface AccountAuthClient {
   getSession: () => Promise<AuthResponseLike>
-  updateUser: (attributes: { email?: string; password?: string }) => Promise<{
+  updateUser: (
+    attributes: { email?: string; password?: string },
+    options?: { emailRedirectTo?: string },
+  ) => Promise<{
     error: Error | null
   }>
   signInWithPassword: (credentials: {
@@ -51,6 +61,36 @@ export interface SupabaseAuthClientLike {
     getSession: () => Promise<AuthResponseLike>
     signInAnonymously: () => Promise<AuthResponseLike>
   }
+}
+
+export function getAuthRedirectUrl(
+  flow: AuthRedirectFlow,
+  options: AuthRedirectOptions = {},
+): string {
+  const env = options.env ?? getViteEnv()
+  const configuredSiteUrl = env.VITE_SITE_URL?.trim()
+  const browserOrigin = options.origin ?? getBrowserOrigin()
+  const baseUrl = configuredSiteUrl || browserOrigin
+
+  if (!baseUrl) {
+    throw new Error('Missing auth redirect URL')
+  }
+
+  let redirectUrl: URL
+  try {
+    redirectUrl = new URL(baseUrl)
+  } catch {
+    throw new Error('Invalid VITE_SITE_URL')
+  }
+
+  if (redirectUrl.protocol !== 'http:' && redirectUrl.protocol !== 'https:') {
+    throw new Error('VITE_SITE_URL must use http or https')
+  }
+
+  redirectUrl.pathname = '/'
+  redirectUrl.search = new URLSearchParams({ auth: flow }).toString()
+  redirectUrl.hash = ''
+  return redirectUrl.toString()
 }
 
 let cachedSupabaseClient: SupabaseClient | null = null
@@ -80,6 +120,16 @@ export function getSupabaseClient(): SupabaseClient {
 
   cachedSupabaseClient = createClient(url, publishableKey)
   return cachedSupabaseClient
+}
+
+function getViteEnv(): Record<string, string | undefined> {
+  return (import.meta as ImportMeta & {
+    env?: Record<string, string | undefined>
+  }).env ?? {}
+}
+
+function getBrowserOrigin(): string {
+  return typeof window === 'undefined' ? '' : window.location.origin
 }
 
 export async function ensureAuthSession(

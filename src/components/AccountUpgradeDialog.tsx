@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import {
+  getAuthRedirectUrl,
   toAuthSession,
   type AccountAuthClient,
   type SessionLike,
@@ -41,7 +42,10 @@ export function AccountUpgradeDialog({
     setIsEmailConflict(false)
 
     try {
-      const result = await authClient.updateUser({ email: email.trim() })
+      const result = await authClient.updateUser(
+        { email: email.trim() },
+        { emailRedirectTo: getAuthRedirectUrl('magic-link') },
+      )
       if (result.error) {
         throw result.error
       }
