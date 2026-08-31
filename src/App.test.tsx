@@ -146,6 +146,28 @@ describe('App', () => {
     expect(screen.queryByRole('dialog', { name: 'Account settings' })).not.toBeInTheDocument()
   })
 
+  it('opens password recovery when a reset link returns to the app', async () => {
+    const originalUrl = window.location.href
+    window.history.replaceState({}, '', '/?auth=recovery')
+
+    try {
+      render(
+        <App
+          apiClient={createApiClientDouble()}
+          authClient={createAuthClientDouble()}
+          authLoader={vi.fn().mockResolvedValue(authenticatedSession)}
+          locale="en-US"
+        />,
+      )
+
+      await screen.findByRole('heading', { name: 'Set a new password' })
+      expect(screen.getByLabelText('New password')).toBeInTheDocument()
+    } finally {
+      const url = new URL(originalUrl)
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+  })
+
   it('shows only the create-account panel when create account is clicked from sign-in', async () => {
     const user = userEvent.setup()
 

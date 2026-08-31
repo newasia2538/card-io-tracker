@@ -22,19 +22,27 @@ export function AccountSignInDialog({
   onClose,
   onSignedIn,
 }: AccountSignInDialogProps) {
-  const [phase, setPhase] = useState<'warning' | 'form'>(
+  const [phase, setPhase] = useState<'warning' | 'form' | 'reset' | 'magic-link'>(
     hasAnonymousTransactions ? 'warning' : 'form',
   )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const translations = getTranslations(language)
+
+  function switchPhase(nextPhase: typeof phase) {
+    setPhase(nextPhase)
+    setError(null)
+    setMessage(null)
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSubmitting(true)
     setError(null)
+    setMessage(null)
 
     try {
       const result = await authClient.signInWithPassword({
@@ -52,7 +60,63 @@ export function AccountSignInDialog({
 
       onSignedIn(session)
     } catch (nextError) {
-      setError(toSignInErrorMessage(nextError, translations))
+      setError(toSignInErrorMessage(nextError, translations.signInError))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handlePasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      if (!authClient.resetPasswordForEmail) {
+        throw new Error(translations.passwordResetError)
+      }
+
+      const result = await authClient.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/?auth=recovery`,
+      })
+      if (result.error) {
+        throw result.error
+      }
+
+      setMessage(translations.passwordResetSent)
+    } catch (nextError) {
+      setError(toSignInErrorMessage(nextError, translations.passwordResetError))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleMagicLink(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      if (!authClient.signInWithOtp) {
+        throw new Error(translations.signInLinkError)
+      }
+
+      const result = await authClient.signInWithOtp({
+        email: email.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/?auth=magic-link`,
+          shouldCreateUser: false,
+        },
+      })
+      if (result.error) {
+        throw result.error
+      }
+
+      setMessage(translations.signInLinkSent)
+    } catch (nextError) {
+      setError(toSignInErrorMessage(nextError, translations.signInLinkError))
     } finally {
       setIsSubmitting(false)
     }
@@ -68,7 +132,7 @@ export function AccountSignInDialog({
         <div className="upgrade-form sign-in-warning">
           <p>{translations.signInWarning}</p>
           <div className="form-actions">
-            <button onClick={() => setPhase('form')} type="button">
+            <button onClick={() => switchPhase('form')} type="button">
               {translations.continueToSignIn}
             </button>
             {onClose ? (
@@ -78,7 +142,7 @@ export function AccountSignInDialog({
             ) : null}
           </div>
         </div>
-      ) : (
+      ) : phase === 'form' ? (
         <form className="upgrade-form" onSubmit={handleSubmit}>
           <label className="field">
             <span>{translations.email}</span>
@@ -114,9 +178,74 @@ export function AccountSignInDialog({
               </button>
             ) : null}
           </div>
+          <div className="auth-flow-links">
+            <button
+              className="auth-flow-link"
+              disabled={isSubmitting}
+              onClick={() => switchPhase('reset')}
+              type="button"
+            >
+              {translations.forgotPassword}
+            </button>
+            <button
+              className="auth-flow-link"
+              disabled={isSubmitting}
+              onClick={() => switchPhase('magic-link')}
+              type="button"
+            >
+              {translations.emailSignInLink}
+            </button>
+          </div>
+        </form>
+      ) : phase === 'reset' ? (
+        <form className="upgrade-form" onSubmit={handlePasswordReset}>
+          <label className="field">
+            <span>{translations.email}</span>
+            <input
+              aria-label={translations.email}
+              autoComplete="email"
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              type="email"
+              value={email}
+            />
+          </label>
+
+          <div className="form-actions">
+            <button disabled={isSubmitting} type="submit">
+              {translations.sendPasswordReset}
+            </button>
+            <button disabled={isSubmitting} onClick={() => switchPhase('form')} type="button">
+              {translations.backToSignIn}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form className="upgrade-form" onSubmit={handleMagicLink}>
+          <label className="field">
+            <span>{translations.email}</span>
+            <input
+              aria-label={translations.email}
+              autoComplete="email"
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              type="email"
+              value={email}
+            />
+          </label>
+
+          <div className="form-actions">
+            <button disabled={isSubmitting} type="submit">
+              {translations.sendSignInLink}
+            </button>
+            <button disabled={isSubmitting} onClick={() => switchPhase('form')} type="button">
+              {translations.backToSignIn}
+            </button>
+          </div>
         </form>
       )}
 
+      {message ? <p role="status">{message}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
     </section>
   )
@@ -124,11 +253,11 @@ export function AccountSignInDialog({
 
 function toSignInErrorMessage(
   error: unknown,
-  translations: ReturnType<typeof getTranslations>,
+  fallback: string,
 ): string {
   if (error instanceof Error) {
     return error.message
   }
 
-  return translations.signInError
+  return fallback
 }

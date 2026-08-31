@@ -20,6 +20,10 @@ export type AuthResponseLike = {
   error: Error | null
 }
 
+export type AuthActionResponseLike = {
+  error: Error | null
+}
+
 export interface AccountAuthClient {
   getSession: () => Promise<AuthResponseLike>
   updateUser: (attributes: { email?: string; password?: string }) => Promise<{
@@ -29,6 +33,14 @@ export interface AccountAuthClient {
     email: string
     password: string
   }) => Promise<AuthResponseLike>
+  resetPasswordForEmail?: (
+    email: string,
+    options?: { redirectTo?: string },
+  ) => Promise<AuthActionResponseLike>
+  signInWithOtp?: (credentials: {
+    email: string
+    options?: { emailRedirectTo?: string; shouldCreateUser?: boolean }
+  }) => Promise<AuthActionResponseLike>
   signOut: () => Promise<{
     error: Error | null
   }>

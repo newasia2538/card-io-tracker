@@ -22,6 +22,21 @@ export interface Translations {
   signIn: string
   signInTitle: string
   signInButton: string
+  forgotPassword: string
+  passwordRecoveryTitle: string
+  newPassword: string
+  confirmPassword: string
+  updatePassword: string
+  sendPasswordReset: string
+  passwordResetSent: string
+  passwordResetError: string
+  passwordUpdateError: string
+  passwordsDoNotMatch: string
+  emailSignInLink: string
+  sendSignInLink: string
+  signInLinkSent: string
+  signInLinkError: string
+  backToSignIn: string
   signInWarning: string
   continueToSignIn: string
   signedIn: string
@@ -123,6 +138,21 @@ const english: Translations = {
   signIn: 'Sign in',
   signInTitle: 'Sign in',
   signInButton: 'SIGN IN',
+  forgotPassword: 'Forgot password?',
+  passwordRecoveryTitle: 'Set a new password',
+  newPassword: 'New password',
+  confirmPassword: 'Confirm password',
+  updatePassword: 'Update password',
+  sendPasswordReset: 'Send password reset email',
+  passwordResetSent: 'If an account exists for that email, password reset instructions are on the way.',
+  passwordResetError: 'Unable to send password reset email.',
+  passwordUpdateError: 'Unable to update your password.',
+  passwordsDoNotMatch: 'Passwords do not match.',
+  emailSignInLink: 'Sign in with email link',
+  sendSignInLink: 'Send sign-in link',
+  signInLinkSent: 'If an account exists for that email, a sign-in link is on the way.',
+  signInLinkError: 'Unable to send sign-in link.',
+  backToSignIn: 'Back to sign in',
   signInWarning: 'Your current anonymous records stay in that anonymous account after sign-in.',
   continueToSignIn: 'Continue to sign in',
   signedIn: 'Signed in.',
@@ -224,6 +254,21 @@ const thai: Translations = {
   signIn: 'เข้าสู่ระบบ',
   signInTitle: 'เข้าสู่ระบบ',
   signInButton: 'เข้าสู่ระบบ',
+  forgotPassword: 'ลืมรหัสผ่านใช่ไหม?',
+  passwordRecoveryTitle: 'ตั้งรหัสผ่านใหม่',
+  newPassword: 'รหัสผ่านใหม่',
+  confirmPassword: 'ยืนยันรหัสผ่าน',
+  updatePassword: 'อัปเดตรหัสผ่าน',
+  sendPasswordReset: 'ส่งอีเมลรีเซ็ตรหัสผ่าน',
+  passwordResetSent: 'หากมีบัญชีสำหรับอีเมลนี้ เราจะส่งคำแนะนำการรีเซ็ตรหัสผ่านให้',
+  passwordResetError: 'ไม่สามารถส่งอีเมลรีเซ็ตรหัสผ่านได้',
+  passwordUpdateError: 'ไม่สามารถอัปเดตรหัสผ่านได้',
+  passwordsDoNotMatch: 'รหัสผ่านไม่ตรงกัน',
+  emailSignInLink: 'เข้าสู่ระบบด้วยลิงก์อีเมล',
+  sendSignInLink: 'ส่งลิงก์เข้าสู่ระบบ',
+  signInLinkSent: 'หากมีบัญชีสำหรับอีเมลนี้ เราจะส่งลิงก์เข้าสู่ระบบให้',
+  signInLinkError: 'ไม่สามารถส่งลิงก์เข้าสู่ระบบได้',
+  backToSignIn: 'กลับไปเข้าสู่ระบบ',
   signInWarning: 'รายการที่บันทึกแบบไม่ระบุตัวตนจะยังอยู่ในบัญชีไม่ระบุตัวตนนั้นหลังเข้าสู่ระบบ',
   continueToSignIn: 'เข้าสู่ระบบต่อ',
   signedIn: 'เข้าสู่ระบบแล้ว',

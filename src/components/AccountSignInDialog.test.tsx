@@ -98,6 +98,62 @@ describe('AccountSignInDialog', () => {
     expect(onSignedIn).not.toHaveBeenCalled()
   })
 
+  it('sends a password reset email with a recovery redirect', async () => {
+    const user = userEvent.setup()
+    const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null })
+
+    render(
+      <AccountSignInDialog
+        authClient={createAuthClient({ resetPasswordForEmail })}
+        hasAnonymousTransactions={false}
+        onSignedIn={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    await user.type(screen.getByLabelText('Email'), ' collector@example.com ')
+    await user.click(screen.getByRole('button', { name: 'Send password reset email' }))
+
+    await waitFor(() => {
+      expect(resetPasswordForEmail).toHaveBeenCalledWith('collector@example.com', {
+        redirectTo: `${window.location.origin}/?auth=recovery`,
+      })
+    })
+    expect(
+      screen.getByText('If an account exists for that email, password reset instructions are on the way.'),
+    ).toBeInTheDocument()
+  })
+
+  it('sends a passwordless sign-in link with a magic-link redirect', async () => {
+    const user = userEvent.setup()
+    const signInWithOtp = vi.fn().mockResolvedValue({ error: null })
+
+    render(
+      <AccountSignInDialog
+        authClient={createAuthClient({ signInWithOtp })}
+        hasAnonymousTransactions={false}
+        onSignedIn={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Sign in with email link' }))
+    await user.type(screen.getByLabelText('Email'), ' collector@example.com ')
+    await user.click(screen.getByRole('button', { name: 'Send sign-in link' }))
+
+    await waitFor(() => {
+      expect(signInWithOtp).toHaveBeenCalledWith({
+        email: 'collector@example.com',
+        options: {
+          emailRedirectTo: `${window.location.origin}/?auth=magic-link`,
+          shouldCreateUser: false,
+        },
+      })
+    })
+    expect(
+      screen.getByText('If an account exists for that email, a sign-in link is on the way.'),
+    ).toBeInTheDocument()
+  })
+
   it('closes without calling Supabase', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()

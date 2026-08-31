@@ -445,6 +445,28 @@ select:focus-visible {
   padding-bottom: 1rem;
 }
 
+.auth-flow-links {
+  display: grid;
+  justify-items: start;
+  gap: 0.3rem;
+}
+
+.auth-flow-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 0.12rem;
+}
+
+.upgrade-form .auth-flow-links button.auth-flow-link {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-strong);
+}
+
 .field,
 .segment-control {
   display: grid;
@@ -665,6 +687,10 @@ select:focus-visible {
 
 .sign-in-panel {
   min-width: 0;
+}
+
+.password-recovery-panel {
+  border-style: dashed;
 }
 
 button[disabled] {
