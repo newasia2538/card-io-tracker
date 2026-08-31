@@ -5,6 +5,7 @@ import "testing"
 func TestLoadFromEnvRequiresAllSettings(t *testing.T) {
 	t.Setenv("SUPABASE_URL", "")
 	t.Setenv("SUPABASE_PUBLISHABLE_KEY", "")
+	t.Setenv("SUPABASE_SECRET_KEY", "")
 	t.Setenv("FRANKFURTER_BASE_URL", "")
 	t.Setenv("PORT", "")
 
@@ -17,6 +18,7 @@ func TestLoadFromEnvRequiresAllSettings(t *testing.T) {
 func TestLoadFromEnvReadsSettings(t *testing.T) {
 	t.Setenv("SUPABASE_URL", "https://example.supabase.co")
 	t.Setenv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test")
+	t.Setenv("SUPABASE_SECRET_KEY", "sb_secret_test")
 	t.Setenv("FRANKFURTER_BASE_URL", "https://api.frankfurter.dev")
 	t.Setenv("PORT", "8080")
 
@@ -30,6 +32,9 @@ func TestLoadFromEnvReadsSettings(t *testing.T) {
 	}
 	if cfg.SupabasePublishableKey != "sb_publishable_test" {
 		t.Fatalf("SupabasePublishableKey = %q, want %q", cfg.SupabasePublishableKey, "sb_publishable_test")
+	}
+	if cfg.SupabaseSecretKey != "sb_secret_test" {
+		t.Fatalf("SupabaseSecretKey = %q, want %q", cfg.SupabaseSecretKey, "sb_secret_test")
 	}
 	if cfg.FrankfurterBaseURL != "https://api.frankfurter.dev" {
 		t.Fatalf("FrankfurterBaseURL = %q, want %q", cfg.FrankfurterBaseURL, "https://api.frankfurter.dev")

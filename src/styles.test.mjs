@@ -42,4 +42,15 @@ describe('responsive layout styles', () => {
     expect(styleBlock('\\.account-email')).toContain('text-overflow: ellipsis')
     expect(styleBlock('\\.sign-in-panel')).toContain('min-width: 0')
   })
+
+  it('keeps account settings modal contained and bottom-aligned on narrow screens', () => {
+    expect(styleBlock('\\.account-settings-backdrop')).toContain('position: fixed')
+    expect(styleBlock('\\.account-settings-modal')).toContain('max-height: calc(100vh - 2rem)')
+    expect(styles).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*?\.account-settings-backdrop\s*\{[^}]*align-items: end/,
+    )
+    expect(styles).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*?\.account-settings-modal\s*\{[^}]*max-height: calc\(100vh - 1\.3rem\)/,
+    )
+  })
 })

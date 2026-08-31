@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -119,6 +119,75 @@ describe('App', () => {
     expect(screen.getByText('collector@example.com')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
+  })
+
+  it('opens registered account settings in a modal and closes it', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(authenticatedSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Account settings' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Account settings' })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByText('collector@example.com')).toBeInTheDocument()
+    expect(within(dialog).getByText('Active')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Close account settings' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Account settings' })).not.toBeInTheDocument()
+  })
+
+  it('shows only the create-account panel when create account is clicked from sign-in', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(screen.getByRole('region', { name: 'Sign in' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(screen.getByRole('region', { name: 'Upgrade account' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Sign in' })).not.toBeInTheDocument()
+  })
+
+  it('shows only the sign-in panel when sign in is clicked from create account', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <App
+        apiClient={createApiClientDouble()}
+        authClient={createAuthClientDouble()}
+        authLoader={vi.fn().mockResolvedValue(anonymousSession)}
+        locale="en-US"
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'CardIO' })
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(screen.getByRole('region', { name: 'Upgrade account' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(screen.getByRole('region', { name: 'Sign in' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Upgrade account' })).not.toBeInTheDocument()
   })
 
   it('signs in and reloads transactions for the registered account', async () => {
