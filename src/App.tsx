@@ -19,6 +19,7 @@ import type {
   TransactionRecord,
 } from './types'
 import { AccountSignInDialog } from './components/AccountSignInDialog'
+import { AccountSettingsDialog } from './components/AccountSettingsDialog'
 import { AccountUpgradeDialog } from './components/AccountUpgradeDialog'
 import { Summary } from './components/Summary'
 import { TransactionForm } from './components/TransactionForm'
@@ -55,6 +56,7 @@ export function App({
   const [bootstrapErrorMessage, setBootstrapErrorMessage] = useState<string | null>(null)
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [isSignInOpen, setIsSignInOpen] = useState(false)
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
   const accountGenerationRef = useRef(0)
@@ -245,6 +247,7 @@ export function App({
       }
       setIsUpgradeOpen(false)
       setIsSignInOpen(false)
+      setIsAccountSettingsOpen(false)
       setStatusKey(nextStatusKey)
     } catch (error) {
       if (!isStale()) {
@@ -296,6 +299,7 @@ export function App({
       setResetSignal((value) => value + 1)
       setIsUpgradeOpen(false)
       setIsSignInOpen(false)
+      setIsAccountSettingsOpen(false)
       setBootstrapErrorMessage(null)
       setStatusKey('loading')
       setBootstrapAttempt((value) => value + 1)
@@ -375,10 +379,22 @@ export function App({
             ) : null}
             {session?.isAnonymous ? (
               <>
-                <button onClick={() => setIsUpgradeOpen((open) => !open)} type="button">
+                <button
+                  onClick={() => {
+                    setIsUpgradeOpen((open) => !open)
+                    setIsSignInOpen(false)
+                  }}
+                  type="button"
+                >
                   {translations.createAccount}
                 </button>
-                <button onClick={() => setIsSignInOpen(true)} type="button">
+                <button
+                  onClick={() => {
+                    setIsSignInOpen(true)
+                    setIsUpgradeOpen(false)
+                  }}
+                  type="button"
+                >
                   {translations.signIn}
                 </button>
               </>
@@ -387,6 +403,9 @@ export function App({
                 <span aria-label={translations.accountEmail} className="account-email">
                   {session.email ?? translations.accountEmail}
                 </span>
+                <button onClick={() => setIsAccountSettingsOpen(true)} type="button">
+                  {translations.accountSettings}
+                </button>
                 <button
                   disabled={isSigningOut}
                   onClick={() => void handleSignOut()}
@@ -422,6 +441,16 @@ export function App({
               language={language}
               onClose={() => setIsSignInOpen(false)}
               onSignedIn={handleSignedIn}
+            />
+          ) : null}
+
+          {session && !session.isAnonymous && isAccountSettingsOpen ? (
+            <AccountSettingsDialog
+              isSigningOut={isSigningOut}
+              language={language}
+              onClose={() => setIsAccountSettingsOpen(false)}
+              onSignOut={() => void handleSignOut()}
+              session={session}
             />
           ) : null}
 

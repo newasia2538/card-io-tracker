@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"cardledger/api/internal/account"
 	"cardledger/api/internal/auth"
 	"cardledger/api/internal/config"
 	"cardledger/api/internal/graphql"
@@ -111,10 +112,19 @@ func run(ctx context.Context) error {
 
 	httpClient := &http.Client{Timeout: upstreamTimeout}
 	authenticator := auth.NewSupabaseAuthenticator(cfg.SupabaseURL, cfg.SupabasePublishableKey, httpClient)
+	accountManager := account.NewSupabaseManager(cfg.SupabaseURL, cfg.SupabaseSecretKey, httpClient)
 	store := graphql.NewClient(cfg.SupabaseURL, cfg.SupabasePublishableKey, httpClient)
 	rateProvider := rates.NewFrankfurterProvider(httpClient, rates.WithBaseURL(cfg.FrankfurterBaseURL))
 	service := transactions.NewService(store, rateProvider)
-	handler := newHandler(transactions.NewHandler(authenticator, service))
+	transactionHandler := transactions.NewHandler(authenticator, service)
+	accountHandler := account.NewHandler(authenticator, accountManager)
+	apiMux := http.NewServeMux()
+	apiMux.Handle("/api/transactions", transactionHandler)
+	apiMux.Handle("/api/transactions/", transactionHandler)
+	apiMux.Handle("/api/exchange-rate", transactionHandler)
+	apiMux.Handle("/api/account", accountHandler)
+	apiMux.Handle("/api/account/", accountHandler)
+	handler := newHandler(apiMux)
 	server := newServer(cfg, handler)
 
 	errCh := make(chan error, 1)

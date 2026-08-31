@@ -30,6 +30,17 @@ export interface Translations {
   signInError: string
   signOutError: string
   accountEmail: string
+  accountSettings: string
+  closeAccountSettings: string
+  registeredAccount: string
+  accountAccess: string
+  accountAccessDescription: string
+  accountStatus: string
+  active: string
+  accountDataOwnership: string
+  yourAccountData: string
+  accountSecurity: string
+  accountSecurityDescription: string
   upgradeAccount: string
   accountUpgraded: string
   unableToUpgrade: string
@@ -120,6 +131,17 @@ const english: Translations = {
   signInError: 'Unable to sign in.',
   signOutError: 'Unable to sign out.',
   accountEmail: 'Account',
+  accountSettings: 'Account settings',
+  closeAccountSettings: 'Close account settings',
+  registeredAccount: 'Registered account',
+  accountAccess: 'Account access',
+  accountAccessDescription: 'Manage your account session and ledger access.',
+  accountStatus: 'Status',
+  active: 'Active',
+  accountDataOwnership: 'Data ownership',
+  yourAccountData: 'Your account data',
+  accountSecurity: 'Account security',
+  accountSecurityDescription: 'Sign out from this device and return to anonymous mode.',
   upgradeAccount: 'Upgrade account',
   accountUpgraded: 'Account upgraded.',
   unableToUpgrade: 'Unable to upgrade your account.',
@@ -210,6 +232,17 @@ const thai: Translations = {
   signInError: 'ไม่สามารถเข้าสู่ระบบได้',
   signOutError: 'ไม่สามารถออกจากระบบได้',
   accountEmail: 'บัญชี',
+  accountSettings: 'การตั้งค่าบัญชี',
+  closeAccountSettings: 'ปิดการตั้งค่าบัญชี',
+  registeredAccount: 'บัญชีที่ลงทะเบียนแล้ว',
+  accountAccess: 'การเข้าถึงบัญชี',
+  accountAccessDescription: 'จัดการเซสชันบัญชีและการเข้าถึงบัญชีรายการของคุณ',
+  accountStatus: 'สถานะ',
+  active: 'ใช้งานอยู่',
+  accountDataOwnership: 'เจ้าของข้อมูล',
+  yourAccountData: 'ข้อมูลบัญชีของคุณ',
+  accountSecurity: 'ความปลอดภัยบัญชี',
+  accountSecurityDescription: 'ออกจากระบบบนอุปกรณ์นี้และกลับไปใช้โหมดไม่ระบุตัวตน',
   upgradeAccount: 'อัปเกรดบัญชี',
   accountUpgraded: 'อัปเกรดบัญชีแล้ว',
   unableToUpgrade: 'ไม่สามารถอัปเกรดบัญชีได้',

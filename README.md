@@ -61,11 +61,12 @@ The Go API reads its own values from the process environment. Export them before
 ```bash
 export SUPABASE_URL="https://your-project.supabase.co"
 export SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
+export SUPABASE_SECRET_KEY="your-server-only-secret-key"
 export FRANKFURTER_BASE_URL="https://api.frankfurter.dev"
 export PORT="8080"
 ```
 
-Use the Supabase publishable key on both sides. Never put a Supabase service-role key in `.env`, the frontend bundle, or source control.
+Use the Supabase publishable key for browser-safe Auth/GraphQL calls. `SUPABASE_SECRET_KEY` is server-only and powers account lifecycle calls; never expose it to the frontend, logs, or source control.
 
 ## Supabase setup
 
@@ -121,6 +122,16 @@ After the app loads:
 11. Create a row on the second device, reload the first device, and confirm it appears there.
 12. Sign out and confirm CardIO returns to anonymous mode without deleting the registered account rows.
 13. Try upgrading an anonymous session with an already registered email. Confirm the upgrade stops, suggests sign-in, and leaves anonymous rows unchanged.
+
+## Account lifecycle API
+
+The Go API authenticates every lifecycle request with the caller's bearer token, takes the user ID from the verified Supabase user response, and calls Supabase Admin API with `SUPABASE_SECRET_KEY`. A signed-up user remains an ordinary Supabase Auth user; the secret key is never sent to the browser.
+
+- `POST /api/account/deactivate` temporarily bans the registered account for 100 years.
+- `POST /api/account/reactivate` removes that ban.
+- `DELETE /api/account` permanently deletes the registered account and cascaded rows. It requires JSON body `{"confirmation":"DELETE"}`.
+
+These endpoints reject anonymous sessions. Account deletion is immediate in this API; add a lifecycle table and background grace-period worker before exposing it as a one-click UI action.
 
 ## Account upgrade flow
 

@@ -10,6 +10,7 @@ import (
 type Config struct {
 	SupabaseURL            string
 	SupabasePublishableKey string
+	SupabaseSecretKey      string
 	FrankfurterBaseURL     string
 	Port                   string
 }
@@ -18,6 +19,7 @@ func LoadFromEnv() (Config, error) {
 	cfg := Config{
 		SupabaseURL:            strings.TrimSpace(os.Getenv("SUPABASE_URL")),
 		SupabasePublishableKey: strings.TrimSpace(os.Getenv("SUPABASE_PUBLISHABLE_KEY")),
+		SupabaseSecretKey:      strings.TrimSpace(os.Getenv("SUPABASE_SECRET_KEY")),
 		FrankfurterBaseURL:     strings.TrimSpace(os.Getenv("FRANKFURTER_BASE_URL")),
 		Port:                   strings.TrimSpace(os.Getenv("PORT")),
 	}
@@ -27,6 +29,9 @@ func LoadFromEnv() (Config, error) {
 	}
 	if cfg.SupabasePublishableKey == "" {
 		return Config{}, errors.New("SUPABASE_PUBLISHABLE_KEY is required")
+	}
+	if cfg.SupabaseSecretKey == "" {
+		return Config{}, errors.New("SUPABASE_SECRET_KEY is required")
 	}
 	if cfg.FrankfurterBaseURL == "" {
 		return Config{}, errors.New("FRANKFURTER_BASE_URL is required")
