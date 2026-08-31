@@ -122,6 +122,8 @@ After the app loads:
 11. Create a row on the second device, reload the first device, and confirm it appears there.
 12. Sign out and confirm CardIO returns to anonymous mode without deleting the registered account rows.
 13. Try upgrading an anonymous session with an already registered email. Confirm the upgrade stops, suggests sign-in, and leaves anonymous rows unchanged.
+14. From Sign in, use Forgot password, follow the recovery link, set a new password, and sign in again.
+15. From Sign in, use Sign in with email link and confirm the link returns to the registered account without creating a new account.
 
 ## Account lifecycle API
 

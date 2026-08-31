@@ -21,6 +21,7 @@ import type {
 import { AccountSignInDialog } from './components/AccountSignInDialog'
 import { AccountSettingsDialog } from './components/AccountSettingsDialog'
 import { AccountUpgradeDialog } from './components/AccountUpgradeDialog'
+import { PasswordRecoveryDialog } from './components/PasswordRecoveryDialog'
 import { Summary } from './components/Summary'
 import { TransactionForm } from './components/TransactionForm'
 import { TransactionList } from './components/TransactionList'
@@ -57,6 +58,7 @@ export function App({
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [isSignInOpen, setIsSignInOpen] = useState(false)
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
+  const [isPasswordRecoveryOpen, setIsPasswordRecoveryOpen] = useState(hasPasswordRecoveryRequest)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
   const accountGenerationRef = useRef(0)
@@ -248,6 +250,7 @@ export function App({
       setIsUpgradeOpen(false)
       setIsSignInOpen(false)
       setIsAccountSettingsOpen(false)
+      setIsPasswordRecoveryOpen(false)
       setStatusKey(nextStatusKey)
     } catch (error) {
       if (!isStale()) {
@@ -259,6 +262,11 @@ export function App({
         setIsLoading(false)
       }
     }
+  }
+
+  function handlePasswordRecoveryComplete() {
+    setIsPasswordRecoveryOpen(false)
+    window.history.replaceState({}, document.title, window.location.pathname)
   }
 
   function handleUpgraded(nextSession: AuthSession) {
@@ -454,6 +462,14 @@ export function App({
             />
           ) : null}
 
+          {session && !session.isAnonymous && isPasswordRecoveryOpen ? (
+            <PasswordRecoveryDialog
+              authClient={authClient}
+              language={language}
+              onCompleted={handlePasswordRecoveryComplete}
+            />
+          ) : null}
+
           <TransactionForm
             defaultCurrency={defaultCurrency}
             editingTransaction={editingTransaction}
@@ -488,6 +504,14 @@ export function App({
       </section>
     </main>
   )
+}
+
+function hasPasswordRecoveryRequest(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  return new URLSearchParams(window.location.search).get('auth') === 'recovery'
 }
 
 type StatusKey =
